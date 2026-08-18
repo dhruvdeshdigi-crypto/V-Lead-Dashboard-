@@ -1,0 +1,1830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>V-Lead MIS Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js">
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSZT3Noa-BE1zDTfS4KDNV6A6l-mm5d1vBbo4UTlzr9CuhQrt3GY6BH6rJnkK7gig/pub?gid=999941999&single=true&output=csv";
+
+async function loadLiveCustomers(){
+  try{
+    const res = await fetch(CSV_URL);
+    const csv = await res.text();
+    const lines = csv.trim().split(/\r?\n/);
+    const headers = lines.shift().split(",");
+    CUSTOMERS = lines.map(line=>{
+      const cols = line.split(",");
+      const obj = {};
+      headers.forEach((h,i)=>obj[h.trim()]=cols[i]||"");
+      return obj;
+    });
+    if(typeof renderAll==="function") renderAll();
+  }catch(e){
+    console.error("Live sync failed", e);
+  }
+}
+loadLiveCustomers();
+setInterval(loadLiveCustomers,60000);
+
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js">
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSZT3Noa-BE1zDTfS4KDNV6A6l-mm5d1vBbo4UTlzr9CuhQrt3GY6BH6rJnkK7gig/pub?gid=999941999&single=true&output=csv";
+
+async function loadLiveCustomers(){
+  try{
+    const res = await fetch(CSV_URL);
+    const csv = await res.text();
+    const lines = csv.trim().split(/\r?\n/);
+    const headers = lines.shift().split(",");
+    CUSTOMERS = lines.map(line=>{
+      const cols = line.split(",");
+      const obj = {};
+      headers.forEach((h,i)=>obj[h.trim()]=cols[i]||"");
+      return obj;
+    });
+    if(typeof renderAll==="function") renderAll();
+  }catch(e){
+    console.error("Live sync failed", e);
+  }
+}
+loadLiveCustomers();
+setInterval(loadLiveCustomers,60000);
+
+</script>
+<style>
+  :root{
+    --bg:#14181d; --panel:#1b2129; --panel-2:#212932; --line:#2c353f;
+    --amber:#f5a623; --amber-dim:#8a6626; --teal:#2dd4bf; --red:#e25c5c; --green:#57c785;
+    --purple:#8b7cf6;
+    --text:#e9edf1; --text-dim:#93a1ad; --text-faint:#5c6873;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    background:radial-gradient(1200px 600px at 85% -10%, rgba(245,166,35,0.07), transparent 60%), var(--bg);
+    color:var(--text); font-family:'Inter',sans-serif; min-height:100vh;
+  }
+  .num{font-family:'Barlow Condensed',sans-serif;font-weight:700;}
+
+  /* ---------- LOGIN ---------- */
+  #login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .login-card{
+    width:100%;max-width:380px;background:linear-gradient(180deg,var(--panel-2),var(--panel));
+    border:1px solid var(--line);border-radius:14px;padding:36px 32px 32px;
+    box-shadow:0 20px 60px rgba(0,0,0,0.45);position:relative;overflow:hidden;
+  }
+  .login-card::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--amber),var(--teal));}
+  .login-badge{
+    width:46px;height:46px;border-radius:10px;background:linear-gradient(135deg,var(--amber),#c97f14);
+    display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:20px;color:#1a1305;margin-bottom:18px;
+  }
+  .login-card h1{font-size:22px;font-weight:600;letter-spacing:0.2px;margin-bottom:4px;}
+  .login-card p.sub{color:var(--text-dim);font-size:13px;margin-bottom:26px;}
+  .field{margin-bottom:16px;}
+  .field label{display:block;font-size:12px;color:var(--text-dim);margin-bottom:6px;letter-spacing:0.3px;text-transform:uppercase;}
+  .field input{
+    width:100%;padding:11px 13px;background:#11151a;border:1px solid var(--line);border-radius:8px;color:var(--text);
+    font-size:14px;font-family:'Inter',sans-serif;outline:none;transition:border-color .15s;
+  }
+  .field input:focus{border-color:var(--amber);}
+  .login-btn{
+    width:100%;padding:12px;border:none;border-radius:8px;margin-top:6px;background:var(--amber);color:#1a1305;
+    font-weight:700;font-size:14px;letter-spacing:0.3px;cursor:pointer;transition:filter .15s;
+  }
+  .login-btn:hover{filter:brightness(1.08);}
+  .login-error{color:var(--red);font-size:12.5px;margin-top:12px;min-height:16px;}
+  .login-hint{margin-top:22px;padding-top:16px;border-top:1px dashed var(--line);font-size:11.5px;color:var(--text-faint);line-height:1.6;}
+
+  /* ---------- DASHBOARD ---------- */
+  #dashboard{display:none;}
+  header.topbar{
+    display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;
+    padding:18px 28px;border-bottom:1px solid var(--line);background:rgba(20,24,29,0.85);
+    position:sticky;top:0;z-index:20;backdrop-filter:blur(6px);
+  }
+  .brand-block{display:flex;align-items:center;gap:12px;}
+  .brand-block .badge{
+    width:38px;height:38px;border-radius:9px;background:linear-gradient(135deg,var(--amber),#c97f14);
+    display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed';font-weight:700;color:#1a1305;font-size:16px;
+  }
+  .brand-block h2{font-size:16.5px;font-weight:600;}
+  .brand-block .meta-line{font-size:12px;color:var(--text-dim);}
+  .topbar-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .sync-status{font-size:11.5px;color:var(--text-faint);display:flex;align-items:center;gap:6px;}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);}
+  .btn{
+    padding:9px 15px;border-radius:8px;border:1px solid var(--line);background:var(--panel-2);color:var(--text);
+    font-size:12.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:7px;
+    transition:border-color .15s, background .15s;
+  }
+  .btn:hover{border-color:var(--amber-dim);background:#26303a;}
+  .btn.primary{background:var(--amber);color:#1a1305;border:none;}
+  .btn.primary:hover{filter:brightness(1.08);}
+  .btn.small{padding:6px 11px;font-size:11.5px;}
+  #file-input{display:none;}
+  #backup-file-input{display:none;}
+  #save-toast{
+    position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);
+    background:var(--panel-2);border:1px solid var(--green);border-radius:10px;
+    padding:11px 20px;font-size:13px;font-weight:600;color:var(--text);
+    box-shadow:0 12px 30px rgba(0,0,0,0.45);z-index:200;
+    display:flex;align-items:center;gap:8px;opacity:0;pointer-events:none;
+    transition:opacity .18s ease,transform .18s ease;
+  }
+  #save-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  #save-toast .dot{width:8px;height:8px;border-radius:50%;background:var(--green);}
+
+  /* nav tabs */
+  nav.section-tabs{
+    display:flex;gap:6px;padding:14px 28px 0;max-width:1400px;margin:0 auto;flex-wrap:wrap;
+  }
+  nav.section-tabs button{
+    padding:10px 18px;border-radius:10px 10px 0 0;border:1px solid var(--line);border-bottom:none;
+    background:var(--panel-2);color:var(--text-dim);font-size:13px;font-weight:600;cursor:pointer;
+  }
+  nav.section-tabs button.active{background:var(--panel);color:var(--amber);}
+
+  main{padding:20px 28px 60px;max-width:1400px;margin:0 auto;}
+  .view{display:none;}
+  .view.active{display:block;}
+
+  .toggle-row{display:flex;gap:8px;margin-bottom:22px;}
+  .toggle-row button{
+    padding:8px 16px;border-radius:20px;border:1px solid var(--line);background:transparent;color:var(--text-dim);
+    font-size:12.5px;font-weight:600;cursor:pointer;
+  }
+  .toggle-row button.active{background:var(--amber);color:#1a1305;border-color:var(--amber);}
+
+  .kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin-bottom:26px;}
+  .kpi-card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 16px 14px;position:relative;overflow:hidden;}
+  .kpi-card .lbl{font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.4px;margin-bottom:8px;}
+  .kpi-card .val{font-size:30px;line-height:1;color:var(--text);}
+  .kpi-card .accent{position:absolute;bottom:0;left:0;right:0;height:2.5px;}
+  .kpi-card.c1 .accent{background:var(--amber);} .kpi-card.c2 .accent{background:var(--teal);}
+  .kpi-card.c3 .accent{background:var(--purple);} .kpi-card.c4 .accent{background:var(--green);}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px 20px 8px;margin-bottom:22px;}
+  .panel-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;}
+  .panel-head h3{font-size:14.5px;font-weight:600;}
+  .panel-head span{font-size:11.5px;color:var(--text-faint);}
+  .panel-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+
+  .charts-grid{display:grid;grid-template-columns:1.2fr 1fr;gap:18px;margin-bottom:22px;}
+  @media (max-width:900px){.charts-grid{grid-template-columns:1fr;}}
+  .chart-box{height:260px;position:relative;}
+  .chart-box.tall{height:360px;}
+
+  table{width:100%;border-collapse:collapse;font-size:12.8px;}
+  thead th{
+    text-align:right;padding:9px 10px;color:var(--text-dim);font-weight:600;font-size:11px;text-transform:uppercase;
+    letter-spacing:0.3px;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;background:var(--panel);
+  }
+  thead th:first-child, tbody td:first-child{text-align:left;}
+  tbody td{padding:9px 10px;text-align:right;border-bottom:1px solid #222a32;white-space:nowrap;}
+  tbody tr:hover{background:#212932;}
+  tbody td:first-child{font-weight:600;color:var(--text);}
+  .paid-tag{font-size:9.5px;background:var(--amber-dim);color:#ffd48a;padding:1px 6px;border-radius:8px;margin-left:6px;}
+  .organic-tag{font-size:9.5px;background:#2a3a34;color:var(--green);padding:1px 6px;border-radius:8px;margin-left:6px;}
+  .table-scroll{overflow-x:auto;padding-bottom:12px;}
+  .table-scroll.scrolly{max-height:520px;overflow-y:auto;}
+  .neg{color:var(--red);}
+  .foot-note{font-size:11px;color:var(--text-faint);padding:14px 4px 4px;line-height:1.6;}
+
+  .badge{display:inline-block;font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:8px;margin-right:3px;letter-spacing:0.2px;}
+  .badge.enq{background:#2a3140;color:#9db4ff;}
+  .badge.td{background:#233b39;color:var(--teal);}
+  .badge.bk{background:#3a3220;color:var(--amber);}
+  .badge.rt{background:#233b2c;color:var(--green);}
+  .badge.none{background:#242c33;color:var(--text-faint);}
+
+  .filter-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center;}
+  .filter-bar input[type="text"]{
+    flex:1;min-width:180px;padding:9px 12px;background:#11151a;border:1px solid var(--line);border-radius:8px;
+    color:var(--text);font-size:12.8px;outline:none;
+  }
+  .filter-bar select{
+    padding:9px 12px;background:#11151a;border:1px solid var(--line);border-radius:8px;color:var(--text);
+    font-size:12.5px;outline:none;
+  }
+  .filter-bar input[type="text"]:focus, .filter-bar select:focus{border-color:var(--amber);}
+  .result-count{font-size:11.5px;color:var(--text-faint);margin-bottom:10px;}
+
+  .export-menu{position:relative;display:inline-block;}
+  .export-dropdown{
+    display:none;position:absolute;right:0;top:calc(100% + 6px);background:var(--panel-2);border:1px solid var(--line);
+    border-radius:8px;overflow:hidden;z-index:30;min-width:150px;box-shadow:0 10px 30px rgba(0,0,0,0.4);
+  }
+  .export-dropdown.open{display:block;}
+  .export-dropdown button{
+    width:100%;text-align:left;padding:10px 14px;background:none;border:none;color:var(--text);font-size:12.5px;
+    cursor:pointer;font-weight:500;
+  }
+  .export-dropdown button:hover{background:#2a333d;}
+
+  .badge.lost{background:#3a2222;color:var(--red);}
+  .rec-link{display:inline-flex;align-items:center;gap:4px;color:var(--teal);text-decoration:none;font-size:12px;font-weight:600;}
+  .rec-link:hover{text-decoration:underline;}
+  .rec-none{color:var(--text-faint);font-size:12px;}
+
+  /* ---------- MODAL ---------- */
+  .modal-overlay{
+    display:none;position:fixed;inset:0;background:rgba(10,12,15,0.68);z-index:100;
+    align-items:flex-start;justify-content:center;padding:40px 16px;overflow-y:auto;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal-card{
+    width:100%;max-width:640px;background:linear-gradient(180deg,var(--panel-2),var(--panel));
+    border:1px solid var(--line);border-radius:14px;padding:26px 26px 22px;box-shadow:0 20px 60px rgba(0,0,0,0.5);
+  }
+  .modal-card h3{font-size:17px;font-weight:600;margin-bottom:4px;}
+  .modal-sub{font-size:12.5px;color:var(--text-dim);margin-bottom:18px;}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px;}
+  .form-grid .full{grid-column:1/-1;}
+  .form-field label{display:block;font-size:11px;color:var(--text-dim);margin-bottom:5px;letter-spacing:0.3px;text-transform:uppercase;}
+  .form-field input, .form-field select, .form-field textarea{
+    width:100%;padding:9px 11px;background:#11151a;border:1px solid var(--line);border-radius:8px;color:var(--text);
+    font-size:13px;font-family:'Inter',sans-serif;outline:none;
+  }
+  .form-field textarea{resize:vertical;min-height:44px;}
+  .form-field input:focus, .form-field select:focus, .form-field textarea:focus{border-color:var(--amber);}
+  .check-row{display:flex;gap:16px;flex-wrap:wrap;margin-top:2px;}
+  .check-row label{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--text);cursor:pointer;text-transform:none;}
+  .check-row input[type="checkbox"]{width:15px;height:15px;accent-color:var(--amber);}
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:22px;}
+  .modal-close-x{position:absolute;top:14px;right:16px;background:none;border:none;color:var(--text-faint);font-size:18px;cursor:pointer;}
+  .modal-card{position:relative;}
+  .form-note{font-size:11.5px;color:var(--text-faint);margin-top:14px;line-height:1.5;}
+
+  .status-edit-btn{
+    display:inline-flex;align-items:center;gap:6px;background:none;border:1px dashed transparent;border-radius:8px;
+    padding:3px 6px 3px 3px;cursor:pointer;
+  }
+  .status-edit-btn:hover{border-color:var(--amber-dim);background:#212932;}
+  .status-edit-btn .edit-ic{font-size:11px;color:var(--text-faint);}
+  .status-edit-btn:hover .edit-ic{color:var(--amber);}
+
+  .fu-badge{display:inline-block;font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:8px;letter-spacing:0.2px;white-space:nowrap;}
+  .fu-upcoming{background:#3a3220;color:var(--amber);}
+  .fu-overdue{background:#3a2222;color:var(--red);}
+  .fu-max{background:#242c33;color:var(--text-faint);}
+  .fu-lost-tag{background:#3a2222;color:var(--red);}
+  .fu-done{background:#233b2c;color:var(--green);}
+
+  .fu-progress-line{display:flex;align-items:center;justify-content:space-between;background:#11151a;border:1px solid var(--line);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12.5px;}
+  .fu-progress-line b{color:var(--text);}
+</style>
+</head>
+<body>
+
+<!-- ================= LOGIN ================= -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-badge">VL</div>
+    <h1>V-Lead MIS</h1>
+    <p class="sub">Sign in to view the daily marketing &amp; lead dashboard</p>
+    <div class="field"><label>Login ID</label><input type="text" id="login-id" placeholder="admin" autocomplete="username"></div>
+    <div class="field"><label>Password</label><input type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password"></div>
+    <button class="login-btn" onclick="attemptLogin()">Sign In</button>
+    <div class="login-error" id="login-error"></div>
+    <div class="login-hint">
+      Default credentials: <b>admin</b> / <b>MIS@2026</b> (same password as the workbook's Setup sheet).
+      To change these, open this file in a text editor and edit the <code>VALID_ID</code> / <code>VALID_PASS</code> constants near the top of the script.
+    </div>
+  </div>
+</div>
+
+<!-- ================= DASHBOARD ================= -->
+<div id="dashboard">
+  <header class="topbar">
+    <div class="brand-block">
+      <div class="badge">VL</div>
+      <div><h2 id="brand-name">Brand</h2><div class="meta-line" id="reporting-month">Reporting month —</div></div>
+    </div>
+    <div class="topbar-actions">
+      <div class="sync-status"><span class="dot" id="sync-dot"></span><span id="sync-text">Loaded from workbook snapshot</span></div>
+      <button class="btn" onclick="document.getElementById('file-input').click()">⟲ Sync latest Excel</button>
+      <input type="file" id="file-input" accept=".xlsx,.xls" onchange="handleFileUpload(event)">
+      <button class="btn" onclick="exportBackup()">⭳ Backup data</button>
+      <button class="btn" onclick="document.getElementById('backup-file-input').click()">⭱ Restore backup</button>
+      <input type="file" id="backup-file-input" accept=".json" onchange="handleBackupRestore(event)">
+      <button class="btn" id="call-sync-btn" onclick="openCallSyncModal()">☎ Call sync</button>
+      <button class="btn" onclick="logout()">Log out</button>
+    </div>
+  </header>
+
+  <nav class="section-tabs">
+    <button class="active" data-sec="overview" onclick="setSection('overview')">Overview</button>
+    <button data-sec="customers" onclick="setSection('customers')">Customer Data</button>
+    <button data-sec="location" onclick="setSection('location')">Location-wise</button>
+    <button data-sec="lost" onclick="setSection('lost')">Lost Case Analysis</button>
+  </nav>
+
+  <main>
+
+    <!-- ============ OVERVIEW ============ -->
+    <section class="view active" id="view-overview">
+      <div class="toggle-row">
+        <button class="active" data-view="ftd" onclick="setView('ftd')">Today (FTD)</button>
+        <button data-view="mtd" onclick="setView('mtd')">Month to Date (MTD)</button>
+      </div>
+
+      <div class="kpi-grid" id="kpi-grid"></div>
+
+      <div class="charts-grid">
+        <div class="panel">
+          <div class="panel-head"><h3>Lead funnel by source</h3><span id="funnel-caption">MTD, all sources</span></div>
+          <div class="chart-box"><canvas id="funnelChart"></canvas></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h3>Spend share</h3><span id="spend-caption">MTD, paid sources</span></div>
+          <div class="chart-box"><canvas id="spendChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="charts-grid">
+        <div class="panel">
+          <div class="panel-head"><h3>Winning vehicles</h3><span>Product mix of retailed customers</span></div>
+          <div class="chart-box"><canvas id="winningVehicleChart"></canvas></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h3>Losing vehicles</h3><span>Product mix of lost customers</span></div>
+          <div class="chart-box"><canvas id="losingVehicleChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>Lead engagement &amp; cost snapshot — by source</h3><span>Budget / Spend / Leads / Enquiries / TD / Booking / Retail</span></div>
+        <div class="table-scroll">
+          <table id="engagement-table">
+            <thead><tr><th>Source</th><th>Budget Used</th><th>Budget Remaining</th><th>Spend</th><th>Leads</th><th>Enquiries</th><th>TD</th><th>Booking</th><th>Retail</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>Conversion rates — month to date</h3><span>Lead→Enquiry, Enquiry→TD, TD→Booking, Enquiry→Booking, Booking→Retail</span></div>
+        <div class="table-scroll">
+          <table id="conversion-table">
+            <thead><tr><th>Source</th><th>L→E %</th><th>E→TD %</th><th>TD→B %</th><th>E→B %</th><th>B→R %</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>Cost economics — paid channels only</h3><span>Reach / Impressions / Clicks / CTR / CPL / CPB</span></div>
+        <div class="table-scroll">
+          <table id="cost-table">
+            <thead><tr><th>Source</th><th>Reach</th><th>Impressions</th><th>Clicks</th><th>CTR %</th><th>CPL</th><th>CPB</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="foot-note">Figures pulled directly from the <b>Daily MIS</b> sheet only — Targets and Setup sheets are not used for these numbers (Setup is used only for brand name / reporting month / password).</div>
+      </div>
+    </section>
+
+    <!-- ============ CUSTOMER DATA ============ -->
+    <section class="view" id="view-customers">
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Customer data — Daily LMS</h3>
+          <div class="panel-actions">
+            <span id="cust-count-tag"></span>
+            <button class="btn small primary" onclick="openAddEnquiryModal()">+ Add Enquiry</button>
+            <div class="export-menu">
+              <button class="btn small" onclick="toggleExportMenu('cust-export')">⭳ Export</button>
+              <div class="export-dropdown" id="cust-export">
+                <button onclick="exportCustomersCSV()">Export as CSV</button>
+                <button onclick="exportCustomersXLSX()">Export as Excel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="filter-bar">
+          <input type="text" id="cust-search" placeholder="Search name, phone, area, remarks…" oninput="renderCustomerTable()">
+          <select id="cust-source-filter" onchange="renderCustomerTable()"><option value="">All sources</option></select>
+          <select id="cust-status-filter" onchange="renderCustomerTable()">
+            <option value="">All statuses</option>
+            <option value="enquiry">Enquiry</option>
+            <option value="td">Test Drive</option>
+            <option value="booking">Booking</option>
+            <option value="retail">Retail</option>
+            <option value="lost">Lost</option>
+            <option value="none">No status yet</option>
+          </select>
+        </div>
+        <div class="result-count" id="cust-result-count"></div>
+        <div class="table-scroll scrolly">
+          <table id="customer-table">
+            <thead>
+              <tr><th>Date</th><th>Source</th><th>Customer</th><th>Phone</th><th>Product</th><th>Area</th><th>City</th><th>Remarks</th><th>Last Follow-up</th><th>Status</th><th>Next Follow-up</th><th>Recording</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="foot-note">Status is derived from the <b>Remarks</b> column: Enquiry = remarks populated · TD = contains "TD"/"Test Drive" · Booking = contains "Book" · Retail = contains "Retail"/"Deliver" · Lost = negative call disposition (not interested / CIBIL reject / too far / unreachable / purchased elsewhere) with no retail. Click the status badges to log a follow-up. Follow-ups are scheduled every 3 days from the enquiry date, up to a maximum of 5. Every change is auto-saved to this browser, so nothing is lost on logout or reload — use <b>⭳ Backup data</b> / <b>⭱ Restore backup</b> in the top bar to move your data to another browser or device. Sample/demo rows (marked with * in column A of Daily LMS) are excluded.</div>
+      </div>
+    </section>
+
+    <!-- ============ LOCATION-WISE ============ -->
+    <section class="view" id="view-location">
+      <div class="kpi-grid" id="loc-kpi-grid"></div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>Top locations by lead volume</h3><span>Enquiry / TD / Booking / Retail per location</span></div>
+        <div class="chart-box tall"><canvas id="locationChart"></canvas></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Location-wise breakdown</h3>
+          <div class="panel-actions">
+            <div class="export-menu">
+              <button class="btn small" onclick="toggleExportMenu('loc-export')">⭳ Export</button>
+              <div class="export-dropdown" id="loc-export">
+                <button onclick="exportLocationCSV()">Export as CSV</button>
+                <button onclick="exportLocationXLSX()">Export as Excel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="filter-bar">
+          <input type="text" id="loc-search" placeholder="Search location or city…" oninput="renderLocationTable()">
+        </div>
+        <div class="table-scroll scrolly">
+          <table id="location-table">
+            <thead><tr><th>Location (Area)</th><th>City</th><th>Leads</th><th>Enquiries</th><th>TD</th><th>Bookings</th><th>Retails</th><th>E→R %</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="foot-note">Built from the <b>Daily LMS</b> "Area" column (falls back to "Unspecified" when blank). Counts are independent per stage — a lead can count in Enquiry, TD and Retail at once, matching the same logic used on the Daily MIS sheet.</div>
+      </div>
+    </section>
+
+    <!-- ============ LOST CASE ANALYSIS ============ -->
+    <section class="view" id="view-lost">
+      <div class="kpi-grid" id="lost-kpi-grid"></div>
+
+      <div class="charts-grid">
+        <div class="panel">
+          <div class="panel-head"><h3>Lost reasons</h3><span>Why leads were lost</span></div>
+          <div class="chart-box"><canvas id="lostReasonChart"></canvas></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h3>Lost by vehicle</h3><span>Which products are being lost most</span></div>
+          <div class="chart-box"><canvas id="lostVehicleChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Lost case detail</h3>
+          <div class="panel-actions">
+            <span id="lost-count-tag"></span>
+            <div class="export-menu">
+              <button class="btn small" onclick="toggleExportMenu('lost-export')">⭳ Export</button>
+              <div class="export-dropdown" id="lost-export">
+                <button onclick="exportLostCSV()">Export as CSV</button>
+                <button onclick="exportLostXLSX()">Export as Excel</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="filter-bar">
+          <input type="text" id="lost-search" placeholder="Search name, phone, area, remarks…" oninput="renderLostTable()">
+          <select id="lost-reason-filter" onchange="renderLostTable()"><option value="">All reasons</option></select>
+        </div>
+        <div class="result-count" id="lost-result-count"></div>
+        <div class="table-scroll scrolly">
+          <table id="lost-table">
+            <thead>
+              <tr><th>Date</th><th>Source</th><th>Customer</th><th>Phone</th><th>Product</th><th>Area</th><th>Reason</th><th>Last Follow-up</th><th>Follow-ups</th><th>Recording</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="foot-note">A lead is classified as <b>Lost</b> when it was not retailed and either an admin explicitly marked it lost (via "+ Add Enquiry"), or its last follow-up note matches a negative disposition (not interested, CIBIL/finance reject, too far, unreachable, purchased elsewhere). This is a heuristic read of free-text remarks — treat it as directional, not exact.</div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ================= ADD ENQUIRY MODAL ================= -->
+<div class="modal-overlay" id="add-enquiry-overlay">
+  <div class="modal-card">
+    <button class="modal-close-x" onclick="closeAddEnquiryModal()">✕</button>
+    <h3>Add customer enquiry</h3>
+    <div class="modal-sub">Adds a new lead to the Customer Data table. Saved locally in this browser.</div>
+    <div class="form-grid">
+      <div class="form-field"><label>Date</label><input type="date" id="ae-date"></div>
+      <div class="form-field"><label>Source</label>
+        <select id="ae-source"></select>
+      </div>
+      <div class="form-field"><label>Customer name *</label><input type="text" id="ae-name" placeholder="Full name"></div>
+      <div class="form-field"><label>Phone *</label><input type="text" id="ae-phone" placeholder="10-digit mobile"></div>
+      <div class="form-field"><label>Product / Vehicle</label><input type="text" id="ae-product" placeholder="e.g. Activa 6G"></div>
+      <div class="form-field"><label>Campaign</label><input type="text" id="ae-campaign" placeholder="e.g. Brand Search"></div>
+      <div class="form-field"><label>Area</label><input type="text" id="ae-area" placeholder="Locality"></div>
+      <div class="form-field"><label>City</label><input type="text" id="ae-city" placeholder="City"></div>
+      <div class="form-field"><label>Email</label><input type="text" id="ae-email" placeholder="Optional"></div>
+      <div class="form-field"><label>Call recording link</label><input type="text" id="ae-recording" placeholder="https://…"></div>
+      <div class="form-field full"><label>Remarks</label><textarea id="ae-remarks" placeholder="Notes about this enquiry"></textarea></div>
+      <div class="form-field full"><label>Last follow-up</label><input type="text" id="ae-lastfollowup" placeholder="e.g. Visiting Saturday / RNR / Invoiced"></div>
+      <div class="form-field full">
+        <label>Stage reached</label>
+        <div class="check-row">
+          <label><input type="checkbox" id="ae-enquiry"> Enquiry</label>
+          <label><input type="checkbox" id="ae-td"> Test Drive</label>
+          <label><input type="checkbox" id="ae-booking"> Booking</label>
+          <label><input type="checkbox" id="ae-retail"> Retail</label>
+        </div>
+      </div>
+      <div class="form-field full">
+        <label>Lost case</label>
+        <div class="check-row"><label><input type="checkbox" id="ae-lost" onchange="document.getElementById('ae-lostreason-wrap').style.display=this.checked?'block':'none'"> Mark as lost</label></div>
+      </div>
+      <div class="form-field full" id="ae-lostreason-wrap" style="display:none;">
+        <label>Lost reason</label>
+        <select id="ae-lostreason">
+          <option>Not Interested</option>
+          <option>Finance / CIBIL Reject</option>
+          <option>Location — Too Far</option>
+          <option>Unreachable</option>
+          <option>Purchased Elsewhere</option>
+          <option>Price / Budget</option>
+          <option>Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-note">* Required fields. Winning/Losing vehicle charts and Lost Case Analysis update automatically once saved.</div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeAddEnquiryModal()">Cancel</button>
+      <button class="btn primary" onclick="submitNewEnquiry()">Save enquiry</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= FOLLOW-UP MODAL ================= -->
+<div class="modal-overlay" id="followup-overlay">
+  <div class="modal-card">
+    <button class="modal-close-x" onclick="closeFollowupModal()">✕</button>
+    <h3 id="fu-title">Customer</h3>
+    <div class="modal-sub" id="fu-meta">—</div>
+
+    <div class="fu-progress-line">
+      <span id="fu-progress">0 of 5 follow-ups used</span>
+      <span>Next follow-up: <b id="fu-next-date">—</b></span>
+    </div>
+
+    <div class="form-grid">
+      <div class="form-field full">
+        <label>Stage reached</label>
+        <div class="check-row">
+          <label><input type="checkbox" id="fu-enquiry"> Enquiry</label>
+          <label><input type="checkbox" id="fu-td"> Test Drive</label>
+          <label><input type="checkbox" id="fu-booking"> Booking</label>
+          <label><input type="checkbox" id="fu-retail"> Retail</label>
+        </div>
+      </div>
+      <div class="form-field full" id="fu-note-wrap">
+        <label>Log today's follow-up</label>
+        <div class="form-grid" style="grid-template-columns:140px 1fr;">
+          <div class="form-field"><label>Date</label><input type="date" id="fu-followup-date"></div>
+          <div class="form-field"><label>Note</label><input type="text" id="fu-note" placeholder="e.g. Spoke to customer, visiting Saturday"></div>
+        </div>
+      </div>
+      <div class="form-field full">
+        <label>Lost case</label>
+        <div class="check-row"><label><input type="checkbox" id="fu-lost" onchange="document.getElementById('fu-lostreason-wrap').style.display=this.checked?'block':'none'"> Mark as lost</label></div>
+      </div>
+      <div class="form-field full" id="fu-lostreason-wrap" style="display:none;">
+        <label>Lost reason</label>
+        <select id="fu-lostreason">
+          <option>Not Interested</option>
+          <option>Finance / CIBIL Reject</option>
+          <option>Location — Too Far</option>
+          <option>Unreachable</option>
+          <option>Purchased Elsewhere</option>
+          <option>Price / Budget</option>
+          <option>Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-note">Follow-ups are auto-scheduled every 3 days from the enquiry date, capped at 5. Logging a follow-up here updates "Last Follow-up" and advances the schedule.</div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeFollowupModal()">Cancel</button>
+      <button class="btn primary" onclick="saveFollowup()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= CALL SYNC MODAL ================= -->
+<div class="modal-overlay" id="call-sync-overlay">
+  <div class="modal-card">
+    <button class="modal-close-x" onclick="closeCallSyncModal()">✕</button>
+    <h3>Call sync — auto-create leads from calls</h3>
+    <div class="modal-sub">Polls your call-tracking backend's <code>GET /calls</code> endpoint and creates a new Customer Data lead for each call it hasn't seen before. Runs only while this dashboard tab is open in your browser.</div>
+    <div class="form-grid">
+      <div class="form-field full"><label>Backend base URL</label><input type="text" id="cs-base-url" placeholder="https://your-service.onrender.com"></div>
+      <div class="form-field full"><label>API key (sent as <code>x-api-key</code> header)</label><input type="text" id="cs-api-key" placeholder="your API key"></div>
+      <div class="form-field"><label>Check every (seconds)</label><input type="number" id="cs-interval" min="15" value="60"></div>
+      <div class="form-field"><label>Lead source to assign</label>
+        <select id="cs-source"></select>
+      </div>
+    </div>
+    <div class="form-note" id="cs-status">Not connected yet.</div>
+    <div class="form-note" style="margin-top:8px;">
+      ⚠ This key is stored only in this browser's local storage and is sent directly from your browser to the backend above — anyone with access to this browser/device (via dev tools) could read it. Don't use this on a shared or public computer.<br>
+      ⚠ The backend must allow browser requests (CORS) from this page's origin, or the browser will block the request — if "Check now" fails immediately, that's the most likely cause; ask whoever built the backend to enable CORS for <code>GET /calls</code>.
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="checkCallsNow()">Check now</button>
+      <button class="btn" id="cs-toggle-btn" onclick="toggleCallSync()">Enable auto-sync</button>
+      <button class="btn primary" onclick="saveCallSyncSettings()">Save settings</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   CREDENTIALS — edit these two lines to change the login
+   ========================================================================= */
+const VALID_ID   = "admin";
+const VALID_PASS = "MIS@2026";
+
+/* =========================================================================
+   DATA — snapshots captured from the uploaded workbook at build time.
+   Use "Sync latest Excel" to refresh from a newer copy of the same
+   workbook (reads the "Daily MIS" and "Daily LMS" sheets only).
+   ========================================================================= */
+const DEFAULT_MIS_DATA = {"meta": {"brand": "Enter Brand Name here", "month": "July 2026"}, "engagement": {"Google": {"budget_start": 0, "budget_used": 0, "budget_remaining": 0, "spend_ftd": 0, "spend_mtd": 0, "leads_ftd": 0, "leads_mtd": 0, "enq_ftd": 0, "enq_mtd": 0, "td_ftd": 0, "td_mtd": 0, "booking_ftd": 0, "booking_mtd": 0, "retail_ftd": 0, "retail_mtd": 0}, "Meta": {"budget_start": 0, "budget_used": 25047.069999999996, "budget_remaining": -25047.069999999996, "spend_ftd": 759.74, "spend_mtd": 25047.069999999996, "leads_ftd": 0, "leads_mtd": 0, "enq_ftd": 0, "enq_mtd": 0, "td_ftd": 0, "td_mtd": 0, "booking_ftd": 0, "booking_mtd": 0, "retail_ftd": 0, "retail_mtd": 0}, "Google (IC)": {"budget_start": 0, "budget_used": 0, "budget_remaining": 0, "spend_ftd": 0, "spend_mtd": 0, "leads_ftd": 0, "leads_mtd": 0, "enq_ftd": 0, "enq_mtd": 0, "td_ftd": 0, "td_mtd": 0, "booking_ftd": 0, "booking_mtd": 0, "retail_ftd": 0, "retail_mtd": 0}, "Meta (IC)": {"budget_start": 0, "budget_used": 0, "budget_remaining": 0, "spend_ftd": 0, "spend_mtd": 0, "leads_ftd": 0, "leads_mtd": 0, "enq_ftd": 0, "enq_mtd": 0, "td_ftd": 0, "td_mtd": 0, "booking_ftd": 0, "booking_mtd": 0, "retail_ftd": 0, "retail_mtd": 0}, "Car/Bike Dekho": {"budget_start": 0, "budget_used": 0, "budget_remaining": 0, "spend_ftd": 0, "spend_mtd": 0, "leads_ftd": 0, "leads_mtd": 0, "enq_ftd": 0, "enq_mtd": 0, "td_ftd": 0, "td_mtd": 0, "booking_ftd": 0, "booking_mtd": 0, "retail_ftd": 0, "retail_mtd": 0}, "Car/Bike Wala": {"budget_start": 0, "budget_used": 0, "budget_remaining": 0, "spend_ftd": 0, "spend_mtd": 0, "leads_ftd": 0, "leads_mtd": 0, "enq_ftd": 0, "enq_mtd": 0, "td_ftd": 0, "td_mtd": 0, "booking_ftd": 0, "booking_mtd": 0, "retail_ftd": 0, "retail_mtd": 0}, "91 Wheels": {"budget_start": 0, "budget_used": 0, "budget_remaining": 0, "spend_ftd": 0, "spend_mtd": 0, "leads_ftd": 0, "leads_mtd": 0, "enq_ftd": 0, "enq_mtd": 0, "td_ftd": 0, "td_mtd": 0, "booking_ftd": 0, "booking_mtd": 0, "retail_ftd": 0, "retail_mtd": 0}, "IVRS": {"budget_start": 0, "budget_used": 0, "budget_remaining": 0, "spend_ftd": 0, "spend_mtd": 0, "leads_ftd": 0, "leads_mtd": 0, "enq_ftd": 0, "enq_mtd": 0, "td_ftd": 0, "td_mtd": 0, "booking_ftd": 0, "booking_mtd": 0, "retail_ftd": 0, "retail_mtd": 0}, "CRM": {"budget_start": 0, "budget_used": 0, "budget_remaining": 0, "spend_ftd": 0, "spend_mtd": 0, "leads_ftd": 0, "leads_mtd": 0, "enq_ftd": 0, "enq_mtd": 0, "td_ftd": 0, "td_mtd": 0, "booking_ftd": 0, "booking_mtd": 0, "retail_ftd": 0, "retail_mtd": 0}, "OEM": {"budget_start": 0, "budget_used": 0, "budget_remaining": 0, "spend_ftd": 0, "spend_mtd": 0, "leads_ftd": 0, "leads_mtd": 0, "enq_ftd": 0, "enq_mtd": 0, "td_ftd": 0, "td_mtd": 0, "booking_ftd": 0, "booking_mtd": 0, "retail_ftd": 0, "retail_mtd": 0}}, "conversions": {"Google": {"l_e_pct": 0, "e_td_pct": 0, "td_b_pct": 0, "e_b_pct": 0, "b_r_pct": 0}, "Meta": {"l_e_pct": 0, "e_td_pct": 0, "td_b_pct": 0, "e_b_pct": 0, "b_r_pct": 0}, "Google (IC)": {"l_e_pct": 0, "e_td_pct": 0, "td_b_pct": 0, "e_b_pct": 0, "b_r_pct": 0}, "Meta (IC)": {"l_e_pct": 0, "e_td_pct": 0, "td_b_pct": 0, "e_b_pct": 0, "b_r_pct": 0}, "Car/Bike Dekho": {"l_e_pct": 0, "e_td_pct": 0, "td_b_pct": 0, "e_b_pct": 0, "b_r_pct": 0}, "Car/Bike Wala": {"l_e_pct": 0, "e_td_pct": 0, "td_b_pct": 0, "e_b_pct": 0, "b_r_pct": 0}, "91 Wheels": {"l_e_pct": 0, "e_td_pct": 0, "td_b_pct": 0, "e_b_pct": 0, "b_r_pct": 0}, "IVRS": {"l_e_pct": 0, "e_td_pct": 0, "td_b_pct": 0, "e_b_pct": 0, "b_r_pct": 0}, "CRM": {"l_e_pct": 0, "e_td_pct": 0, "td_b_pct": 0, "e_b_pct": 0, "b_r_pct": 0}, "OEM": {"l_e_pct": 0, "e_td_pct": 0, "td_b_pct": 0, "e_b_pct": 0, "b_r_pct": 0}}, "cost": {"Google": {"budget_planned": 0, "budget_used": 0, "budget_remaining": 0, "reach_ftd": 0, "reach_mtd": 0, "impr_ftd": 0, "impr_mtd": 0, "clicks_ftd": 0, "clicks_mtd": 0, "cpr_ftd": 0, "cpr_mtd": 0, "ctr_ftd": 0, "ctr_mtd": 0, "cpl_ftd": 0, "cpl_mtd": 0, "cpb_ftd": 0, "cpb_mtd": 0}, "Meta": {"budget_planned": 0, "budget_used": 25047.069999999996, "budget_remaining": -25047.069999999996, "reach_ftd": 0, "reach_mtd": 0, "impr_ftd": 20396, "impr_mtd": 555880, "clicks_ftd": 256, "clicks_mtd": 5524.09, "cpr_ftd": 0, "cpr_mtd": 0, "ctr_ftd": 0.012551480682486762, "ctr_mtd": 0.00993755846585594, "cpl_ftd": 0, "cpl_mtd": 0, "cpb_ftd": 0, "cpb_mtd": 0}, "Google (IC)": {"budget_planned": 0, "budget_used": 0, "budget_remaining": 0, "reach_ftd": 0, "reach_mtd": 0, "impr_ftd": 0, "impr_mtd": 0, "clicks_ftd": 0, "clicks_mtd": 0, "cpr_ftd": 0, "cpr_mtd": 0, "ctr_ftd": 0, "ctr_mtd": 0, "cpl_ftd": 0, "cpl_mtd": 0, "cpb_ftd": 0, "cpb_mtd": 0}, "Meta (IC)": {"budget_planned": 0, "budget_used": 0, "budget_remaining": 0, "reach_ftd": 0, "reach_mtd": 0, "impr_ftd": 0, "impr_mtd": 0, "clicks_ftd": 0, "clicks_mtd": 0, "cpr_ftd": 0, "cpr_mtd": 0, "ctr_ftd": 0, "ctr_mtd": 0, "cpl_ftd": 0, "cpl_mtd": 0, "cpb_ftd": 0, "cpb_mtd": 0}}};
+const DEFAULT_CUSTOMERS = [{"date": "2026-07-01", "source": "Meta", "campaign": "Brand Search", "name": "Mohammed", "product": "Activa 6G", "phone": "9845824167", "email": "", "area": "Banasvadi", "city": "Bengaluru", "remarks": "", "lastFollowup": "RNR", "followupCount": 4, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-01", "source": "Meta", "campaign": "Brand Search", "name": "Kushwath", "product": "Activa 6G", "phone": "6361391357", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "Customer will confirm and call back", "followupCount": 4, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-02", "source": "Meta", "campaign": "Brand Search", "name": "Navaneetha", "product": "Activa 6G", "phone": "6363288532", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "Low cibil rejected", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-02", "source": "Meta", "campaign": "Brand Search", "name": "Kesh", "product": "Activa 6G", "phone": "7738264494", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "Not int", "followupCount": 4, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-02", "source": "Meta", "campaign": "Brand Search", "name": "Raffi", "product": "Activa 6G", "phone": "7019875192", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "Disconnecting the call", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-02", "source": "Meta", "campaign": "Brand Search", "name": "Doley", "product": "Activa 6G", "phone": "7708708965", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "Next month", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-03", "source": "Meta", "campaign": "Brand Search", "name": "Sathya", "product": "Activa 6G", "phone": "9886949121", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "Customer will call back and sr", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-03", "source": "Meta", "campaign": "Brand Search", "name": "Kailash", "product": "Activa 6G", "phone": "9740511673", "email": "", "area": "Uttaralli", "city": "Bengaluru", "remarks": "", "lastFollowup": "Too far", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-03", "source": "Meta", "campaign": "Brand Search", "name": "Vasim patan", "product": "Activa 6G", "phone": "9916655690", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "Disconnecting the call", "followupCount": 4, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-03", "source": "Meta", "campaign": "Brand Search", "name": "Manjunath doddamani", "product": "Activa 6G", "phone": "9008304233", "email": "", "area": "Sajjapura", "city": "Bengaluru", "remarks": "", "lastFollowup": "Adhar pan sent today evening 29th", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-03", "source": "Meta", "campaign": "Brand Search", "name": "Hareesh", "product": "Activa 6G", "phone": "8884578256", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "low cibil reject", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-03", "source": "Meta", "campaign": "Brand Search", "name": "Babu", "product": "Activa 6G", "phone": "8050919552", "email": "", "area": "KR Puram", "city": "Bengaluru", "remarks": "", "lastFollowup": "Not int", "followupCount": 5, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-03", "source": "Meta", "campaign": "Brand Search", "name": "Manjunath", "product": "Activa 6G", "phone": "9980968069", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "RNR", "followupCount": 4, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-03", "source": "Meta", "campaign": "Brand Search", "name": "Akbar pasha", "product": "Activa 6G", "phone": "9035749705", "email": "", "area": "Malleshwaram", "city": "Bengaluru", "remarks": "", "lastFollowup": "Purchased", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-03", "source": "Meta", "campaign": "Brand Search", "name": "Asif khan", "product": "Activa 6G", "phone": "7411666424", "email": "", "area": "Nagwara", "city": "Bengaluru", "remarks": "", "lastFollowup": "After ashada", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-03", "source": "Meta", "campaign": "Brand Search", "name": "Ansar", "product": "Dio 110", "phone": "6363195844", "email": "", "area": "Malleshwaram", "city": "Bengaluru", "remarks": "", "lastFollowup": "Visiting  29th", "followupCount": 5, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-04", "source": "Meta", "campaign": "Brand Search", "name": "Nirupadi", "product": "Activa 6G", "phone": "7019242783", "email": "", "area": "Nelamagla", "city": "Bengaluru", "remarks": "", "lastFollowup": "After 2 months", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-04", "source": "Meta", "campaign": "Brand Search", "name": "Rajesh", "product": "Activa 6G", "phone": "7008495364", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "Busy", "followupCount": 5, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-04", "source": "Meta", "campaign": "Brand Search", "name": "Waeem", "product": "Activa 6G", "phone": "8197971034", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "Not int", "followupCount": 4, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-04", "source": "Meta", "campaign": "Brand Search", "name": "Ahmed", "product": "Activa 6G", "phone": "7019873256", "email": "", "area": "Tanisandra", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 4, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-04", "source": "Meta", "campaign": "Brand Search", "name": "Pooja", "product": "Activa 6G", "phone": "8848899787", "email": "", "area": "Tanisandra", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Booked ", "followupCount": 2, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-04", "source": "Meta", "campaign": "Brand Search", "name": "Sajid", "product": "Unicorn", "phone": "8618826293", "email": "", "area": "Tanisandra", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Visiting 31st", "followupCount": 2, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-04", "source": "Meta", "campaign": "Brand Search", "name": "Shangamesh", "product": "Dio 125", "phone": "8867420811", "email": "", "area": "Yadgiri", "city": "", "remarks": "", "lastFollowup": "Disconnecting the call", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-04", "source": "Meta", "campaign": "Brand Search", "name": "Gowtam", "product": "Activa 6G", "phone": "9900835066", "email": "", "area": "Yalahanka", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Need finance quotaion ", "followupCount": 2, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-04", "source": "Meta", "campaign": "Brand Search", "name": "Prakash", "product": "Activa 6G", "phone": "9902128067", "email": "", "area": "KR Puram", "city": "Bengaluru", "remarks": "", "lastFollowup": "RNR", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-04", "source": "Meta", "campaign": "Brand Search", "name": "Tabrez pasha", "product": "Activa 6G", "phone": "9206715662", "email": "", "area": "Tanisandra", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 3, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-04", "source": "Meta", "campaign": "Brand Search", "name": "Shashi Kumar", "product": "Activa 6G", "phone": "8867008809", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Disconnecting the call", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-04", "source": "Meta", "campaign": "Brand Search", "name": "Chethan", "product": "Activa 6G", "phone": "7892303687", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "RNR", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-04", "source": "Meta", "campaign": "Brand Search", "name": "Santhosh", "product": "Activa 6G", "phone": "9384176657", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Disconnecting the call", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-04", "source": "Meta", "campaign": "Brand Search", "name": "Nagaraju", "product": "Activa 6G", "phone": "9739945997", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Call not connecting", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-04", "source": "Meta", "campaign": "Brand Search", "name": "Ravi Kumar", "product": "Activa 6G", "phone": "7899845820", "email": "", "area": "Tc palya", "city": "Bengaluru", "remarks": "", "lastFollowup": "Busy in another call", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-05", "source": "Meta", "campaign": "Brand Search", "name": "Rajesh", "product": "Activa 6G", "phone": "9741562645", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "After ashada", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-05", "source": "Meta", "campaign": "Brand Search", "name": "Manju", "product": "Activa 6G", "phone": "9844276196", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Incoming barred", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Vivek", "product": "Activa 6G", "phone": "7050659246", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Not int", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Rudra Sanal", "product": "Activa 6G", "phone": "7735985135", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Busy in another call", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Prajwal", "product": "Activa 6G", "phone": "9380730212", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "RNR", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Kumar", "product": "Activa 6G", "phone": "9330499010", "email": "", "area": "Sajjapura", "city": "", "remarks": "", "lastFollowup": "Purchased co brand", "followupCount": 7, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Rakesh kumar", "product": "Activa 6G", "phone": "8926340406", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Disconnecting the call", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Varalakshmi", "product": "Activa 6G", "phone": "9901784699", "email": "", "area": "Hoskote", "city": "", "remarks": "", "lastFollowup": "Too far", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Madhu", "product": "Activa 6G", "phone": "8792767468", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Switch off", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Vikash", "product": "Activa 6G", "phone": "6375053103", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Not connecting", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Uttam Bohara", "product": "Activa 6G", "phone": "6238080145", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Not int", "followupCount": 5, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Ranjit kumar", "product": "Activa 6G", "phone": "9692356050", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "RNR", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Kumar", "product": "Activa 6G", "phone": "9900858309", "email": "", "area": "Chitradurga", "city": "", "remarks": "", "lastFollowup": "Chitradurga", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Santhosh", "product": "Activa 6G", "phone": "9035756184", "email": "", "area": "Vijay nagar", "city": "Bengaluru", "remarks": "", "lastFollowup": "Not enq", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Mostakin", "product": "Dio 125", "phone": "9082815429", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "Not connecting", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Shripal Soni", "product": "Activa 6G", "phone": "8884761227", "email": "", "area": "Vijay nagar", "city": "Bengaluru", "remarks": "", "lastFollowup": "Incoming barred", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Doddabasayya", "product": "Activa 6G", "phone": "9035044224", "email": "", "area": "Electroncity", "city": "Bengaluru", "remarks": "", "lastFollowup": "Next month 3rd", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Sriram", "product": "Activa 6G", "phone": "7904206464", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Not enq", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Manjunath", "product": "Activa 6G", "phone": "7090864133", "email": "", "area": "Basaveshwar nagar", "city": "", "remarks": "", "lastFollowup": "Too far", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Jyothi", "product": "Activa 6G", "phone": "9353148079", "email": "", "area": "Kamakshipaly", "city": "Bengaluru", "remarks": "", "lastFollowup": "Too far", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Muniraju", "product": "Activa 6G", "phone": "8550819892", "email": "", "area": "JP Nagar", "city": "Bengaluru", "remarks": "", "lastFollowup": "Alredy purchased Jpnagar", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Abhi Bhat", "product": "Activa 6G", "phone": "8310576326", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Not enq", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Benny", "product": "Activa 6G", "phone": "7676615030", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Not int", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Akil", "product": "Activa 6G", "phone": "8002068248", "email": "", "area": "Nagarbavi", "city": "Bengaluru", "remarks": "", "lastFollowup": "Not int", "followupCount": 4, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Santal kumar", "product": "Activa 6G", "phone": "7857836042", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Not enq", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Sindhu", "product": "Activa 6G", "phone": "9886719091", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Switch off", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Bala", "product": "Activa 6G", "phone": "8977201664", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Still not planning", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Omkar", "product": "Activa 6G", "phone": "7385707258", "email": "", "area": "JC Nagar", "city": "Bengaluru", "remarks": "", "lastFollowup": "Customer is busy call back", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Rakesh", "product": "Activa 6G", "phone": "9849618928", "email": "", "area": "Pune", "city": "", "remarks": "", "lastFollowup": "Customer not interested", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Syed", "product": "Activa 6G", "phone": "8095524717", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Call not connecting", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Mahendra", "product": "QC1", "phone": "8197007451", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Just price enq", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Naveen", "product": "Activa 6G", "phone": "8147265587", "email": "", "area": "Kumbalgudu", "city": "Bengaluru", "remarks": "", "lastFollowup": "Too for", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Prabhas", "product": "Shine 125", "phone": "7829331400", "email": "", "area": "Vidyaranyapura", "city": "Bengaluru", "remarks": "", "lastFollowup": "Busy in another call", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Das", "product": "Activa 6G", "phone": "6002769191", "email": "", "area": "Yalahanka", "city": "Bengaluru", "remarks": "", "lastFollowup": "TVS Purchased", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Rajendran", "product": "Activa 6G", "phone": "9538769748", "email": "", "area": "Kormagla", "city": "Bengaluru", "remarks": "", "lastFollowup": "RNR", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-06", "source": "Meta", "campaign": "Brand Search", "name": "Arul T", "product": "Activa 6G", "phone": "8880742350", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 3, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-07", "source": "Meta", "campaign": "Brand Search", "name": "Nadeem uddin", "product": "Activa 6G", "phone": "9343838117", "email": "", "area": "Chamaraj pete", "city": "", "remarks": "", "lastFollowup": "Next month", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-07", "source": "Meta", "campaign": "Brand Search", "name": "Kaleem khan", "product": "Activa 6G", "phone": "8884513305", "email": "", "area": "Ramchandrapura", "city": "", "remarks": "", "lastFollowup": "Not int", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-07", "source": "Meta", "campaign": "Brand Search", "name": "Jagadish", "product": "Activa 6G", "phone": "8123647421", "email": "", "area": "Yalahanka", "city": "Bengaluru", "remarks": "", "lastFollowup": "Enq last", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-07", "source": "Meta", "campaign": "Brand Search", "name": "Mohammed", "product": "Activa 6G", "phone": "9742552928", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "Disconnecting the call", "followupCount": 4, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-07", "source": "Meta", "campaign": "Brand Search", "name": "Ramchandra", "product": "Activa 6G", "phone": "9535101321", "email": "", "area": "Hegdenagar", "city": "Bengaluru", "remarks": "", "lastFollowup": "Busy in another call", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-07", "source": "Meta", "campaign": "Brand Search", "name": "Santhosh Chalavadi", "product": "Activa 6G", "phone": "8971084420", "email": "", "area": "Yashwanthpura", "city": "Bengaluru", "remarks": "", "lastFollowup": "Not int", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-07", "source": "Meta", "campaign": "Brand Search", "name": "Althumanu", "product": "Activa 6G", "phone": "8088615325", "email": "", "area": "Krpuram", "city": "Bengaluru", "remarks": "", "lastFollowup": "Visiting and call back sr", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-07", "source": "Meta", "campaign": "Brand Search", "name": "Dorairaj", "product": "Activa 125", "phone": "9845098856", "email": "", "area": "Martalli", "city": "Bengaluru", "remarks": "", "lastFollowup": "Purchased co brand", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-07", "source": "Meta", "campaign": "Brand Search", "name": "Teju", "product": "Activa 6G", "phone": "9513311459", "email": "", "area": "Yalahanka", "city": "Bengaluru", "remarks": "", "lastFollowup": "Enq last", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-07", "source": "Meta", "campaign": "Brand Search", "name": "Vinod kumar", "product": "Activa 6G", "phone": "8217025674", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "Disconnecting the call ", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-07", "source": "Meta", "campaign": "Brand Search", "name": "Lakshmi Narayana", "product": "Activa 6G", "phone": "8884307349", "email": "", "area": "Anekallu", "city": "Bengaluru", "remarks": "", "lastFollowup": "RNR", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-07", "source": "Meta", "campaign": "Brand Search", "name": "Manjunath ", "product": "Activa 6G", "phone": "7996996944", "email": "", "area": "Yalahanka", "city": "Bengaluru", "remarks": "", "lastFollowup": "Visiting free time and call back", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-07", "source": "Meta", "campaign": "Brand Search", "name": "Gopinath", "product": "Activa 6G", "phone": "9483993536", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "Visiting ", "followupCount": 4, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-08", "source": "Meta", "campaign": "Brand Search", "name": "Govindaraja", "product": "Activa 6G", "phone": "9740800348", "email": "", "area": "Vidyaranyapura", "city": "Bengaluru", "remarks": "", "lastFollowup": "Busy in another call", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-08", "source": "Meta", "campaign": "Brand Search", "name": "Yashaswini", "product": "Activa 6G", "phone": "6364314047", "email": "", "area": "Malleshwaram", "city": "Bengaluru", "remarks": "", "lastFollowup": "Customer will call back", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-08", "source": "Meta", "campaign": "Brand Search", "name": "Shiba mandal", "product": "Activa 6G", "phone": "7908466151", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "Given to bhuvanesh", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-08", "source": "Meta", "campaign": "Brand Search", "name": "Hari narayan", "product": "Activa 6G", "phone": "9008475014", "email": "", "area": "Yalahanka", "city": "Bengaluru", "remarks": "", "lastFollowup": "Call not connecting", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-08", "source": "Meta", "campaign": "Brand Search", "name": "Chandar", "product": "Activa 6G", "phone": "9632957494", "email": "", "area": "Tanisandra", "city": "Bengaluru", "remarks": "", "lastFollowup": "Visiting tomorrow", "followupCount": 4, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-08", "source": "Meta", "campaign": "Brand Search", "name": "Akmal Pasha", "product": "Activa 6G", "phone": "9900137475", "email": "", "area": "Vijaynagr", "city": "Bengaluru", "remarks": "", "lastFollowup": "Toon", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-09", "source": "Meta", "campaign": "Brand Search", "name": "Manjappa", "product": "Activa 6G", "phone": "8618679935", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "RNR", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-09", "source": "Meta", "campaign": "Brand Search", "name": "Shiva kumar", "product": "Shine 125", "phone": "9481458643", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 3, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-09", "source": "Meta", "campaign": "Brand Search", "name": "Vasanth kumar", "product": "Activa 6G", "phone": "6363398366/9986410964", "email": "", "area": "Yalahanka", "city": "Bengaluru", "remarks": "hot enq-td,booking", "lastFollowup": "Invoiced", "followupCount": 3, "enquiry": true, "td": true, "booking": true, "retail": false}, {"date": "2026-07-09", "source": "Meta", "campaign": "Brand Search", "name": "Irshad pasha", "product": "Activa 6G", "phone": "9483287770", "email": "", "area": "Yalahanka", "city": "Bengaluru", "remarks": "", "lastFollowup": "RNR", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-09", "source": "Meta", "campaign": "Brand Search", "name": "Madhu ", "product": "Activa 6G", "phone": "8548031151", "email": "", "area": "Vidyaranyapura", "city": "Bengaluru", "remarks": "", "lastFollowup": "Disconnecting the call", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-09", "source": "Meta", "campaign": "Brand Search", "name": "Arun kumar", "product": "Activa 6G", "phone": "8951362877", "email": "", "area": "Tanisandra", "city": "Bengaluru", "remarks": "", "lastFollowup": "Not req", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-09", "source": "Meta", "campaign": "Brand Search", "name": "Zameer Ahmed", "product": "Activa 6G", "phone": "9686098039", "email": "", "area": "Malleshwaram", "city": "Bengaluru", "remarks": "", "lastFollowup": "Visiting tomorrow", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-09", "source": "Meta", "campaign": "Brand Search", "name": "Bharath", "product": "Activa 6G", "phone": "9035024398", "email": "", "area": "Vidyaranyapura", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced ", "followupCount": 2, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-10", "source": "Meta", "campaign": "Brand Search", "name": "Shobha", "product": "Activa 6G", "phone": "9591279238", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 3, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-10", "source": "Meta", "campaign": "Brand Search", "name": "Gautam Kumar", "product": "Activa 6G", "phone": "8877771737", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "RNR", "followupCount": 4, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-10", "source": "Meta", "campaign": "Brand Search", "name": "Nazeer Ahmed", "product": "Activa 6G", "phone": "9380063228", "email": "", "area": "Kormagla", "city": "Bengaluru", "remarks": "", "lastFollowup": "Not int", "followupCount": 8, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-10", "source": "Meta", "campaign": "Brand Search", "name": "Suhail", "product": "Activa 6G", "phone": "7899628741", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "Not int", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-10", "source": "Meta", "campaign": "Brand Search", "name": "Harish", "product": "Activa 6G", "phone": "8147363923", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "Next month", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-10", "source": "Meta", "campaign": "Brand Search", "name": "Aswaq Ahmed", "product": "Activa 6G", "phone": "9845278710", "email": "", "area": "Bannergatta", "city": "Bengaluru", "remarks": "", "lastFollowup": "Td", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-10", "source": "Meta", "campaign": "Brand Search", "name": "Kapani Gowda", "product": "Activa 6G", "phone": "9141735545", "email": "", "area": "JP Nagar", "city": "Bengaluru", "remarks": "", "lastFollowup": "480cibil", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-10", "source": "Meta", "campaign": "Brand Search", "name": "Karibasappa", "product": "Activa 6G", "phone": "9740155106", "email": "", "area": "Martalli", "city": "Bengaluru", "remarks": "", "lastFollowup": "Planning", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-10", "source": "Meta", "campaign": "Brand Search", "name": "Subhash", "product": "Activa 6G", "phone": "9980204089", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Customer will call back", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-10", "source": "Meta", "campaign": "Brand Search", "name": "Deepika", "product": "Activa 6G", "phone": "9441965842", "email": "", "area": "Hoskote", "city": "Bengaluru", "remarks": "", "lastFollowup": "Too far", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-10", "source": "Meta", "campaign": "Brand Search", "name": "Kishore", "product": "Activa 6G", "phone": "9880000947", "email": "", "area": "Yalahanka", "city": "Bengaluru", "remarks": "", "lastFollowup": "Credit card", "followupCount": 4, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-10", "source": "Meta", "campaign": "Brand Search", "name": "Kiran", "product": "Activa 6G", "phone": "7411036471", "email": "", "area": "Yalahanka", "city": "Bengaluru", "remarks": "", "lastFollowup": "Not int", "followupCount": 4, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-10", "source": "Meta", "campaign": "Brand Search", "name": "Misbah", "product": "Activa 6G", "phone": "7017172406", "email": "", "area": "Tanisandra", "city": "Bengaluru", "remarks": "", "lastFollowup": "Looking for 2nd hand vehicle", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-10", "source": "Meta", "campaign": "Brand Search", "name": "Dayanand", "product": "Activa 6G", "phone": "9902831312", "email": "", "area": "Malleshwaram", "city": "Bengaluru", "remarks": "", "lastFollowup": "Decide and call back", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-10", "source": "Meta", "campaign": "Brand Search", "name": "Madiya Fathima", "product": "Activa 6G", "phone": "9916785044", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "Adhar pan", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-10", "source": "Meta", "campaign": "Brand Search", "name": "Arjun", "product": "Activa 6G", "phone": "7411736752", "email": "", "area": "HSR layout", "city": "Bengaluru", "remarks": "", "lastFollowup": "Disconnecting the call", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-10", "source": "Meta", "campaign": "Brand Search", "name": "Thomas ", "product": "Activa 6G", "phone": "8197166126", "email": "", "area": "Tanisandra", "city": "Bengaluru", "remarks": "", "lastFollowup": "In SR", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-10", "source": "Meta", "campaign": "Brand Search", "name": "Samuel", "product": "Activa 6G", "phone": "9677791163", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 4, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-11", "source": "Meta", "campaign": "Brand Search", "name": "Customer", "product": "Activa 6G", "phone": "9900263161", "email": "", "area": "Vidyaranyapura", "city": "Bengaluru", "remarks": "", "lastFollowup": "Visitig 17th ", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-11", "source": "Meta", "campaign": "Brand Search", "name": "Saleem", "product": "Activa 6G", "phone": "9008081690", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "RNR", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-11", "source": "Meta", "campaign": "Brand Search", "name": "Mahimeraj", "product": "Activa 6G", "phone": "937930457", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 3, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-11", "source": "Meta", "campaign": "Brand Search", "name": "Shivashekar", "product": "Activa 6G", "phone": "6363327742", "email": "", "area": "Malleshwaram", "city": "Bengaluru", "remarks": "", "lastFollowup": "Visiting free time", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-11", "source": "Meta", "campaign": "Brand Search", "name": "Surya ", "product": "Activa 6G", "phone": "9980118269", "email": "", "area": "Tanisandra", "city": "Bengaluru", "remarks": "", "lastFollowup": "RNR", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-11", "source": "Meta", "campaign": "Brand Search", "name": "Anees ", "product": "Activa 6G", "phone": "8892671096", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "15TH", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-11", "source": "Meta", "campaign": "Brand Search", "name": "Karthik", "product": "Activa 6G", "phone": "6363793824", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 4, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-11", "source": "Meta", "campaign": "Brand Search", "name": "Saritha", "product": "Activa 125", "phone": "6360740315/9019618066", "email": "", "area": "Yalahanka", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 4, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-11", "source": "Meta", "campaign": "Brand Search", "name": "Shaik Yunus", "product": "Activa 6G", "phone": "9618995429", "email": "", "area": "Ballary", "city": "", "remarks": "", "lastFollowup": "Mc Visiting 12th", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-12", "source": "Meta", "campaign": "Brand Search", "name": "Buthraj", "product": "Activa 6G", "phone": "7022281296", "email": "", "area": "Yashwanthpura", "city": "Bengaluru", "remarks": "", "lastFollowup": "Customer will call   back", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-13", "source": "Meta", "campaign": "Brand Search", "name": "Jaffar khan", "product": "Activa 6G", "phone": "9902806881", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "Adhar pan", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-13", "source": "Meta", "campaign": "Brand Search", "name": "Sagar", "product": "Activa 6G", "phone": "8310599410", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "SBI ", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-13", "source": "Meta", "campaign": "Brand Search", "name": "Darshan", "product": "Activa 6G", "phone": "9741816738", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "550CIBIL", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-14", "source": "Meta", "campaign": "Brand Search", "name": "Manjunath", "product": "Activa 6G", "phone": "9353177316", "email": "", "area": "Malleshwaram", "city": "Bengaluru", "remarks": "", "lastFollowup": "Need Quotaion", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-14", "source": "Meta", "campaign": "Brand Search", "name": "Arun", "product": "Activa 6G", "phone": "8147626785", "email": "", "area": "Guttalli", "city": "Bengaluru", "remarks": "", "lastFollowup": "Visiting free time sr call back", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-14", "source": "Meta", "campaign": "Brand Search", "name": "Prashanth", "product": "Activa 6G", "phone": "8884156521", "email": "", "area": "Frazer town", "city": "Bengaluru", "remarks": "", "lastFollowup": "Visiting today 15th evening", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-14", "source": "Meta", "campaign": "Brand Search", "name": "Lingaraju Gowda", "product": "Activa 6G", "phone": "9886502168", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "Not int", "followupCount": 5, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-14", "source": "Meta", "campaign": "Brand Search", "name": "Raju", "product": "Activa 6G", "phone": "8073797824", "email": "", "area": "Yalahanka", "city": "Bengaluru", "remarks": "", "lastFollowup": "Today visiting 15th", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-14", "source": "Meta", "campaign": "Brand Search", "name": "Ishwarya", "product": "Activa 6G", "phone": "7976793053", "email": "", "area": "Yalahanka", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 3, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-14", "source": "Meta", "campaign": "Brand Search", "name": "Rajendran ", "product": "Activa 6G", "phone": "6002037920", "email": "", "area": "Rajajinagar", "city": "Bengaluru", "remarks": "", "lastFollowup": "Not connecting", "followupCount": 5, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-14", "source": "Meta", "campaign": "Brand Search", "name": "Rajendran ", "product": "Activa 6G", "phone": "6001639670", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Bhuvanesh", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-14", "source": "Meta", "campaign": "Brand Search", "name": "Uday shankar", "product": "Activa 6G", "phone": "8618052813", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "RNR", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-14", "source": "Meta", "campaign": "Brand Search", "name": "Partha", "product": "Activa 6G", "phone": "7204815710", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Call farwarding", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-14", "source": "Meta", "campaign": "Brand Search", "name": "Chandrakanth", "product": "Activa 6G", "phone": "8792349418", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Disconnecting the call", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-14", "source": "Meta", "campaign": "Brand Search", "name": "Rahul", "product": "Activa 6G", "phone": "8967209297", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "RNR", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-14", "source": "Meta", "campaign": "Brand Search", "name": "Manoj", "product": "Activa 6G", "phone": "9707053370", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Disconnecting the call", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-14", "source": "Meta", "campaign": "Brand Search", "name": "Sajeeda", "product": "Activa 6G", "phone": "8880804023", "email": "", "area": "Kalyan nagar", "city": "Bengaluru", "remarks": "", "lastFollowup": "Visiting 18th free time", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-14", "source": "Meta", "campaign": "Brand Search", "name": "Ranjeet kumar", "product": "Activa 6G", "phone": "8660391990", "email": "", "area": "Vidyaranyapura", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 3, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-14", "source": "Meta", "campaign": "Brand Search", "name": "Jishnu Raj", "product": "Activa 6G", "phone": "8590501211", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Customer will call   back", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-14", "source": "Meta", "campaign": "Brand Search", "name": "Karthik", "product": "Activa 6G", "phone": "7259328814", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Not enq", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-14", "source": "Meta", "campaign": "Brand Search", "name": "Bidyut", "product": "Activa 6G", "phone": "8336080406", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "RNR", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-14", "source": "Meta", "campaign": "Brand Search", "name": "Babu", "product": "Activa 6G", "phone": "6371444324", "email": "", "area": "HSR layout", "city": "", "remarks": "", "lastFollowup": "Disconnecting the call", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Rajaram", "product": "Activa 6G", "phone": "9686973926", "email": "", "area": "Electron city", "city": "Bengaluru", "remarks": "", "lastFollowup": "Visiting MC Sunday", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Ravi", "product": "Activa 6G", "phone": "9591936701", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Disconnecting the call", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Girdhari kumar", "product": "Activa 6G", "phone": "7783061300", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "RNR", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Manjunath", "product": "Activa 6G", "phone": "9591252661", "email": "", "area": "HSR layout", "city": "", "remarks": "", "lastFollowup": "Not int", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Jyothi", "product": "Activa 6G", "phone": "9556365657", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Not enq", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Arup ", "product": "Activa 6G", "phone": "9398558544", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "RNR", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Salman", "product": "Activa 6G", "phone": "8970659498", "email": "", "area": "Malleshwaram", "city": "", "remarks": "", "lastFollowup": "RNR", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Deepak", "product": "Activa 6G", "phone": "9663906271", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Not enq", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Ravichandran", "product": "Activa 6G", "phone": "9739081671", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Disconnecting the call", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Ajay kumar", "product": "Activa 6G", "phone": "9731999646", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Not enq", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Arbaz khan", "product": "Activa 6G", "phone": "7349457032", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "RNR", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Balaram Nahak", "product": "Activa 6G", "phone": "6370988309", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "RNR", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Mahammad kalim", "product": "Activa 6G", "phone": "8660391640", "email": "", "area": "Sheshadrepuram", "city": "", "remarks": "", "lastFollowup": "Disconnecting the call", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Vishwanath", "product": "Activa 6G", "phone": "9035637326", "email": "", "area": "Chikbanuvara", "city": "", "remarks": "", "lastFollowup": "Alredy visit mc", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Antony", "product": "Activa 6G", "phone": "7676735909", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Switch off", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Joy ", "product": "Activa 6G", "phone": "6003259282", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Not enq", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Nagaraju", "product": "Activa 6G", "phone": "9902918093", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Switch off", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Pradan", "product": "Activa 6G", "phone": "7608897693", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Planning next month", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Krishna", "product": "Activa 6G", "phone": "9477717174", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Looking for 2nd hand vehicle", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Dhanraj", "product": "Activa 6G", "phone": "7676722023", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Disconnecting the call", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Mabud ", "product": "Activa 6G", "phone": "8371960845", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Disconnecting the call", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Vishnu", "product": "Activa 6G", "phone": "8296954341", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Customer will call back", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Ananya", "product": "Activa 6G", "phone": "9977265655", "email": "", "area": "Yalahanka", "city": "", "remarks": "hot enq-td,booking,", "lastFollowup": "Invoiced", "followupCount": 4, "enquiry": true, "td": true, "booking": true, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Shreeshail", "product": "Activa 6G", "phone": "9611153783", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Disconnecting the call", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Yogesh", "product": "Activa 6G", "phone": "8884735638", "email": "", "area": "Bannergatta", "city": "", "remarks": "", "lastFollowup": "Too far", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Ashok", "product": "Activa 6G", "phone": "9630125519", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Disconnecting the call", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Santhosh", "product": "Activa 6G", "phone": "8105778070", "email": "", "area": "Vijaya nagar", "city": "", "remarks": "", "lastFollowup": "Pg 40yr old", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Tinku", "product": "Activa 6G", "phone": "8618958451", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "RNR", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Rasmiranjan", "product": "Activa 6G", "phone": "9008631393", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Not enq", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Siddharth", "product": "Activa 6G", "phone": "8970873066", "email": "", "area": "Tamilnadu", "city": "", "remarks": "", "lastFollowup": "Not enq", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Mahimeraj", "product": "Activa 6G", "phone": "9379030457", "email": "", "area": "", "city": "", "remarks": "hot enq-td,retail", "lastFollowup": "Invoiced", "followupCount": 4, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Manjunath", "product": "Activa 6G", "phone": "9401175463", "email": "", "area": "Rajajinagar", "city": "Bengaluru", "remarks": "", "lastFollowup": "After ashada", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-15", "source": "Meta", "campaign": "Brand Search", "name": "Manoj", "product": "Activa 6G", "phone": "7737547516", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 4, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-16", "source": "Meta", "campaign": "Brand Search", "name": "Venkatesh", "product": "Activa 6G", "phone": "8123787282", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "Visiting sunday", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-16", "source": "Meta", "campaign": "Brand Search", "name": "Varadha", "product": "Activa 6G", "phone": "9972868039", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Not enq", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-16", "source": "Meta", "campaign": "Brand Search", "name": "Ravi", "product": "Activa 6G", "phone": "6360276856", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "RNR", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-16", "source": "Meta", "campaign": "Brand Search", "name": "Vinoth", "product": "Activa 6G", "phone": "7411247935", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "RNR", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-16", "source": "Meta", "campaign": "Brand Search", "name": "Sahin", "product": "Activa 6G", "phone": "9800825151", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Not enq", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-16", "source": "Meta", "campaign": "Brand Search", "name": "Kalid", "product": "Activa 6G", "phone": "9845974705", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "Visiting Monday or Tuesday", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-16", "source": "Meta", "campaign": "Brand Search", "name": "Abdul ", "product": "Activa 6G", "phone": "9632321560", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Exchange dealer", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-16", "source": "Meta", "campaign": "Brand Search", "name": "Nanjunda", "product": "Activa 6G", "phone": "8123621933", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Disconnecting the call", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-16", "source": "Meta", "campaign": "Brand Search", "name": "Srinivas", "product": "Activa 6G", "phone": "9341015280", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "Need finance login", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-16", "source": "Meta", "campaign": "Brand Search", "name": "Gulnaz", "product": "Dio125", "phone": "8217347223", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 3, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-16", "source": "Meta", "campaign": "Brand Search", "name": "Babu", "product": "Activa 6G", "phone": "9740839082", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 3, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-16", "source": "Meta", "campaign": "Brand Search", "name": "Nagashree", "product": "Activa 6G", "phone": "9620742070", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced ", "followupCount": 2, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-17", "source": "Meta", "campaign": "Brand Search", "name": "Vinkatesh", "product": "Activa 6G", "phone": "9972323531", "email": "", "area": "Vidyaranyapura", "city": "Bengaluru", "remarks": "", "lastFollowup": "Visiting free time", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-17", "source": "Meta", "campaign": "Brand Search", "name": "Surya", "product": "Activa 6G", "phone": "6361249761", "email": "", "area": "Vidyaranyapura", "city": "Bengaluru", "remarks": "", "lastFollowup": "Disconnecting the call ", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-17", "source": "Meta", "campaign": "Brand Search", "name": "Najma sultan", "product": "Activa 6G", "phone": "9900272517", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 3, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-17", "source": "Meta", "campaign": "Brand Search", "name": "Prabhu", "product": "Activa 6G", "phone": "9900233625", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "Disconnecting the call ", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-17", "source": "Meta", "campaign": "Brand Search", "name": "Kumawat", "product": "Activa 6G", "phone": "9448856171", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 4, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-17", "source": "Meta", "campaign": "Brand Search", "name": "Customer", "product": "Activa 6G", "phone": "9686336129", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Switch off", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-17", "source": "Meta", "campaign": "Brand Search", "name": "Dilbahhhadur", "product": "Activa 125", "phone": "8073370245", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 3, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-17", "source": "Meta", "campaign": "Brand Search", "name": "Achin Kumar", "product": "Activa 125", "phone": "8879346123", "email": "", "area": "Yalahanka", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 3, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-17", "source": "Meta", "campaign": "Brand Search", "name": "Achin Kumar", "product": "EV", "phone": "9886012129", "email": "", "area": "Devnalli", "city": "Bengaluru", "remarks": "", "lastFollowup": "Visiting free time", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-18", "source": "Meta", "campaign": "Brand Search", "name": "Sparsharaj", "product": "Activa 6G", "phone": "8951182996", "email": "", "area": "Bomnahalli", "city": "Bengaluru", "remarks": "", "lastFollowup": "RNR", "followupCount": 4, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-19", "source": "Meta", "campaign": "Brand Search", "name": "Davendra", "product": "Activa 6G", "phone": "9164301162", "email": "", "area": "Vidyaranyapura", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 3, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-19", "source": "Meta", "campaign": "Brand Search", "name": "Ajith Santosh", "product": "Activa 6G", "phone": "7218829144", "email": "", "area": "Yalahanka", "city": "Bengaluru", "remarks": "", "lastFollowup": "Disconnecting the call", "followupCount": 4, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-19", "source": "Meta", "campaign": "Brand Search", "name": "Munendra", "product": "Activa 6G", "phone": "9060146667", "email": "", "area": "Vidyaranyapura", "city": "Bengaluru", "remarks": "", "lastFollowup": "RNR", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-19", "source": "Meta", "campaign": "Brand Search", "name": "Syeeda", "product": "Activa 6G", "phone": "8095137881", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "RNR", "followupCount": 5, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-19", "source": "Meta", "campaign": "Brand Search", "name": "Venkatesh", "product": "Activa 6G", "phone": "9071692314", "email": "", "area": "Malleshwaram", "city": "Bengaluru", "remarks": "", "lastFollowup": "After ashada", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-19", "source": "Meta", "campaign": "Brand Search", "name": "Prathik", "product": "Activa 6G", "phone": "9980609811", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 3, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-20", "source": "Meta", "campaign": "Brand Search", "name": "Biman", "product": "Activa 6G", "phone": "9611153551", "email": "", "area": "Sjjapura", "city": "Bengaluru", "remarks": "", "lastFollowup": "Too for", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-20", "source": "Meta", "campaign": "Brand Search", "name": "Ravi", "product": "Activa 6G", "phone": "9036077763", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "RNR", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-20", "source": "Meta", "campaign": "Brand Search", "name": "Subha", "product": "Activa 6G", "phone": "7490008957", "email": "", "area": "Yalahanka", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 3, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-20", "source": "Meta", "campaign": "Brand Search", "name": "Raghu", "product": "Activa 6G", "phone": "7760064416", "email": "", "area": "Malleshwaram", "city": "Bengaluru", "remarks": "", "lastFollowup": "Customer is busy after call back", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-21", "source": "Meta", "campaign": "Brand Search", "name": "Sharanappa", "product": "Activa 6G", "phone": "7022170920", "email": "", "area": "Devnalli", "city": "Bengaluru", "remarks": "", "lastFollowup": "RNR", "followupCount": 4, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-21", "source": "Meta", "campaign": "Brand Search", "name": "Prasanna", "product": "Activa 6G", "phone": "8549811364", "email": "", "area": "Yashwanthpura", "city": "Bengaluru", "remarks": "", "lastFollowup": "Call not connecting", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-21", "source": "Meta", "campaign": "Brand Search", "name": "Harish", "product": "Activa 6G", "phone": "8217493692", "email": "", "area": "Vidyaranyapura", "city": "Bengaluru", "remarks": "", "lastFollowup": "Purchased jalahalli cross", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-21", "source": "Meta", "campaign": "Brand Search", "name": "Manjunath", "product": "Activa 6G", "phone": "9902052401", "email": "", "area": "Sanjay nagar", "city": "Bengaluru", "remarks": "", "lastFollowup": "After ashada", "followupCount": 4, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-21", "source": "Meta", "campaign": "Brand Search", "name": "Babu", "product": "Shine 100", "phone": "9903848730", "email": "", "area": "Hegdenagar", "city": "Bengaluru", "remarks": "", "lastFollowup": "Busy in another call", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-22", "source": "Meta", "campaign": "Brand Search", "name": "Syed Saleem", "product": "Activa 6G", "phone": "9731170750", "email": "", "area": "KR puram", "city": "Bengaluru", "remarks": "", "lastFollowup": "Visiting 28th", "followupCount": 5, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-22", "source": "Meta", "campaign": "Brand Search", "name": "Suresh", "product": "Activa 6G", "phone": "9611837923", "email": "", "area": "Kormagla", "city": "Bengaluru", "remarks": "", "lastFollowup": "After ashada", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-22", "source": "Meta", "campaign": "Brand Search", "name": "Hareesh", "product": "Activa 6G", "phone": "8553636808", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "MC", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-22", "source": "Meta", "campaign": "Brand Search", "name": "Mitun", "product": "Activa 6G", "phone": "8293821055", "email": "", "area": "Mekhri circle", "city": "Bengaluru", "remarks": "", "lastFollowup": "Rate high", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-22", "source": "Meta", "campaign": "Brand Search", "name": "Kempa", "product": "Dio125", "phone": "9611122451", "email": "", "area": "Malleshwaram", "city": "Bengaluru", "remarks": "", "lastFollowup": "Visiting free time", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-22", "source": "Meta", "campaign": "Brand Search", "name": "Prajwal", "product": "Activa 6G", "phone": "8147812318", "email": "", "area": "Malleshwaram", "city": "Bengaluru", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 3, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-23", "source": "Meta", "campaign": "Brand Search", "name": "Customer", "product": "Activa 6G", "phone": "7974446910", "email": "", "area": "Mekhri circle", "city": "", "remarks": "", "lastFollowup": "RNR", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-23", "source": "Meta", "campaign": "Brand Search", "name": "Mamatha", "product": "Activa 6G", "phone": "6363026341", "email": "", "area": "Mekhri circle", "city": "", "remarks": "", "lastFollowup": "Disconnecting the call", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-23", "source": "Meta", "campaign": "Brand Search", "name": "Vasu Dev", "product": "Activa 6G", "phone": "9884404789", "email": "", "area": "Mekhri circle", "city": "", "remarks": "", "lastFollowup": "Disconnecting the call", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-23", "source": "Meta", "campaign": "Brand Search", "name": "Syed ahmed", "product": "Activa 6G", "phone": "9611732416", "email": "", "area": "Mekhri circle", "city": "", "remarks": "", "lastFollowup": "Looking for exchange", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-23", "source": "Meta", "campaign": "Brand Search", "name": "Kumar", "product": "Activa 6G", "phone": "9845028542", "email": "", "area": "Yalahanka", "city": "", "remarks": "", "lastFollowup": "25dp 18months", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-23", "source": "Meta", "campaign": "Brand Search", "name": "Pavan", "product": "Activa 6G", "phone": "9353039950", "email": "", "area": "Yalahanka", "city": "", "remarks": "", "lastFollowup": "Disconnecting the call", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-23", "source": "Meta", "campaign": "Brand Search", "name": "Ahmed ", "product": "Dio 110", "phone": "9845824167", "email": "", "area": "Tanisandra", "city": "", "remarks": "", "lastFollowup": "RNR", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-23", "source": "Meta", "campaign": "Brand Search", "name": "Basavaraju", "product": "Activa 6G", "phone": "9739181555", "email": "", "area": "Yalahanka", "city": "", "remarks": "", "lastFollowup": "RNR", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-23", "source": "Meta", "campaign": "Brand Search", "name": "Sriragam", "product": "Activa 6G", "phone": "9614283151", "email": "", "area": "Yalahanka", "city": "", "remarks": "", "lastFollowup": "Visiting 27th Free time", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-23", "source": "Meta", "campaign": "Brand Search", "name": "Rama Reddy", "product": "Activa 6G", "phone": "9884404789", "email": "", "area": "Malleshwaram", "city": "", "remarks": "", "lastFollowup": "Disconnecting the call", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-23", "source": "Meta", "campaign": "Brand Search", "name": "Ramesh", "product": "Activa 6G", "phone": "9480493101", "email": "", "area": "Malleshwaram", "city": "", "remarks": "", "lastFollowup": "Planning next month Sunday", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-23", "source": "Meta", "campaign": "Brand Search", "name": "Shashidar", "product": "Activa 6G", "phone": "9535631500/8660852400", "email": "", "area": "Vidyaranyapura", "city": "", "remarks": "", "lastFollowup": "Busy in another call", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-23", "source": "Meta", "campaign": "Brand Search", "name": "Chandru", "product": "Activa 6G", "phone": "8792709859/8660420077", "email": "", "area": "Mekhri circle", "city": "", "remarks": "", "lastFollowup": "After ashada", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-23", "source": "Meta", "campaign": "Brand Search", "name": "Pradeep", "product": "Activa 6G", "phone": "9148177201", "email": "", "area": "Vidyaranyapura", "city": "", "remarks": "", "lastFollowup": "", "followupCount": 0, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-23", "source": "Meta", "campaign": "Brand Search", "name": "Penumalli", "product": "Activa 6G", "phone": "9148100197", "email": "", "area": "Malleshwaram", "city": "", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 2, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-23", "source": "Meta", "campaign": "Brand Search", "name": "Bikash", "product": "Shine 100", "phone": "7001749658", "email": "", "area": "Yashwanthpura", "city": "", "remarks": "", "lastFollowup": "Given to vinay sir", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-23", "source": "Meta", "campaign": "Brand Search", "name": "Surya Prakash", "product": "Activa 6G", "phone": "9844554266", "email": "", "area": "Hebbal", "city": "", "remarks": "", "lastFollowup": "Need finance login", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-23", "source": "Meta", "campaign": "Brand Search", "name": "Yeshwanth", "product": "Activa 6G", "phone": "8317475002", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Given to vinay sir", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-23", "source": "Meta", "campaign": "Brand Search", "name": "Devraju", "product": "Activa 6G", "phone": "7760396154", "email": "", "area": "Mekhri circle", "city": "", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 3, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-24", "source": "Meta", "campaign": "Brand Search", "name": "Santhosh ", "product": "Activa 6G", "phone": "7676241178", "email": "", "area": "Tanisandra", "city": "", "remarks": "", "lastFollowup": "Need quotation", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-24", "source": "Meta", "campaign": "Brand Search", "name": "Vikash", "product": "Activa 125", "phone": "7719546592", "email": "", "area": "Yalahanka", "city": "", "remarks": "", "lastFollowup": "Need finance login", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-25", "source": "Meta", "campaign": "Brand Search", "name": "Sohan", "product": "Activa 125", "phone": "8763905710", "email": "", "area": "Yalahanka", "city": "", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 2, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-26", "source": "Meta", "campaign": "Brand Search", "name": "Nagesh", "product": "SP 125 drum", "phone": "9900398306", "email": "", "area": "Nelamagla", "city": "", "remarks": "", "lastFollowup": "", "followupCount": 0, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-27", "source": "Meta", "campaign": "Brand Search", "name": "Sandeep", "product": "Activa 125", "phone": "9886699211", "email": "", "area": "Mekhri circle", "city": "", "remarks": "", "lastFollowup": "Cibil reject", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-27", "source": "Meta", "campaign": "Brand Search", "name": "Rajendran", "product": "Activa 6G", "phone": "9538769748", "email": "", "area": "Mekhri circle", "city": "", "remarks": "", "lastFollowup": "Ahdar pan tommorrow send", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-27", "source": "Meta", "campaign": "Brand Search", "name": "Vishwanath", "product": "Activa 6G", "phone": "9686598100", "email": "", "area": "Mekhri circle", "city": "", "remarks": "", "lastFollowup": "", "followupCount": 0, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-28", "source": "Meta", "campaign": "Brand Search", "name": "Aska", "product": "Shine 125", "phone": "9880618332", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "After ashada", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-28", "source": "Meta", "campaign": "Brand Search", "name": "Syed maqsood", "product": "Activa 6G", "phone": "9902305766", "email": "", "area": "Kengeri", "city": "", "remarks": "", "lastFollowup": "Visiting 29th", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-28", "source": "Meta", "campaign": "Brand Search", "name": "Rangayya", "product": "Shine 125", "phone": "9019636785", "email": "", "area": "Raiachur", "city": "", "remarks": "", "lastFollowup": "Visiting Saturday", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-28", "source": "Meta", "campaign": "Brand Search", "name": "Rakesh", "product": "Activa 6G", "phone": "7760707658/9380049956", "email": "", "area": "Yashwanthpura", "city": "", "remarks": "", "lastFollowup": "20yr old", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-28", "source": "Meta", "campaign": "Brand Search", "name": "Govindaraju", "product": "Activa 6G", "phone": "9182818751", "email": "", "area": "Sahakar nagar", "city": "", "remarks": "", "lastFollowup": "Visiting", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-28", "source": "Meta", "campaign": "Brand Search", "name": "Nayaz", "product": "Activa 6G", "phone": "9980318947", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Discuse with family", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-28", "source": "Meta", "campaign": "Brand Search", "name": "Chethan kumar", "product": "Activa 6G", "phone": "9535179182", "email": "", "area": "Tanisandra", "city": "", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 3, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-28", "source": "Meta", "campaign": "Brand Search", "name": "Shivaraj", "product": "Activa 6G", "phone": "9686336129", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Need vehicle photos", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-28", "source": "Meta", "campaign": "Brand Search", "name": "Shivaraman", "product": "Activa 6G", "phone": "9342526591", "email": "", "area": "Yalahanka", "city": "", "remarks": "", "lastFollowup": "Need ylk location", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-28", "source": "Meta", "campaign": "Brand Search", "name": "Thimraju", "product": "Activa 6G", "phone": "9632597276", "email": "", "area": "Mekhri circle", "city": "", "remarks": "", "lastFollowup": "Given to bhuvanesh", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-28", "source": "Meta", "campaign": "Brand Search", "name": "Prasad", "product": "Activa 6G", "phone": "7975492046", "email": "", "area": "Mekhri circle", "city": "", "remarks": "", "lastFollowup": "Given to vinay", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-28", "source": "Meta", "campaign": "Brand Search", "name": "Raju", "product": "Activa 6G", "phone": "9964720650", "email": "", "area": "Malleshwaram", "city": "", "remarks": "", "lastFollowup": "Visiting 29th", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-28", "source": "Meta", "campaign": "Brand Search", "name": "Prakash", "product": "Dio 110", "phone": "9739142414", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Need vehcle qutation", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-28", "source": "Meta", "campaign": "Brand Search", "name": "Gururaj", "product": "Dio 110", "phone": "8904005334", "email": "", "area": "Mekhri circle", "city": "", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 3, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-28", "source": "Meta", "campaign": "Brand Search", "name": "Suman", "product": "Activa 6G", "phone": "8319987041", "email": "", "area": "", "city": "", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 3, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-29", "source": "Meta", "campaign": "Brand Search", "name": "Raju", "product": "Dio 110", "phone": "9738894144", "email": "", "area": "Laggeri", "city": "", "remarks": "", "lastFollowup": "Visiting 31st", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-29", "source": "Meta", "campaign": "Brand Search", "name": "Muniyappa", "product": "Dio 125", "phone": "6360791589", "email": "", "area": "Yashwanthpura", "city": "", "remarks": "hot enq,td,retail", "lastFollowup": "Invoiced", "followupCount": 5, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-29", "source": "Meta", "campaign": "Brand Search", "name": "Zameer Ahmed", "product": "Dio 110", "phone": "9972495591", "email": "", "area": "Tanisandra", "city": "", "remarks": "", "lastFollowup": "Need vehicle quotaion and location", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-29", "source": "Meta", "campaign": "Brand Search", "name": "Samitha", "product": "ADV 160", "phone": "8310057092", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "", "followupCount": 0, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-29", "source": "Meta", "campaign": "Brand Search", "name": "Soni", "product": "Activa 6G", "phone": "8431247395", "email": "", "area": "Yalahanka", "city": "", "remarks": "", "lastFollowup": "Visiting 7August", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-29", "source": "Meta", "campaign": "Brand Search", "name": "Yogesh", "product": "Activa 6G", "phone": "9945021805", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Need finance qutaion", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-30", "source": "Meta", "campaign": "Brand Search", "name": "Customer", "product": "Activa 6G", "phone": "8217676204", "email": "", "area": "RT nagar", "city": "", "remarks": "", "lastFollowup": "Visiting 30th", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-30", "source": "Meta", "campaign": "Brand Search", "name": "Raju", "product": "Activa 6G", "phone": "9739117729", "email": "", "area": "", "city": "", "remarks": "", "lastFollowup": "Visiing today", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-30", "source": "Meta", "campaign": "Brand Search", "name": "Ashok", "product": "Activa 6G", "phone": "8072820391", "email": "", "area": "Frazertown", "city": "", "remarks": "", "lastFollowup": "Today visiting", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-30", "source": "Meta", "campaign": "Brand Search", "name": "Raju", "product": "Activa 6G", "phone": "9880509929", "email": "", "area": "Yashwanthpura", "city": "", "remarks": "   ", "lastFollowup": "Visiting 31st", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-30", "source": "Meta", "campaign": "Brand Search", "name": "Somanna", "product": "Activa 6G", "phone": "9448171300", "email": "", "area": "Yalahanka", "city": "", "remarks": "", "lastFollowup": "Visiting today free time", "followupCount": 3, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-30", "source": "Meta", "campaign": "Brand Search", "name": "Krishna Rao", "product": "Activa 6G", "phone": "9980496944", "email": "", "area": "Mekhri circle", "city": "", "remarks": "", "lastFollowup": "After ashada", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-30", "source": "Meta", "campaign": "Brand Search", "name": "Suman das", "product": "Activa 6G", "phone": "9366294049", "email": "", "area": "Yalahanka", "city": "", "remarks": "", "lastFollowup": "Need ylk location", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-30", "source": "Meta", "campaign": "Brand Search", "name": "Manjesh", "product": "Shine 125", "phone": "7411054233", "email": "", "area": "Mekhri circle", "city": "", "remarks": "hot enq,td,retail", "lastFollowup": "", "followupCount": 0, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-30", "source": "Meta", "campaign": "Brand Search", "name": "Naveen kumar", "product": "Activa 6G", "phone": "8971344817", "email": "", "area": "", "city": "", "remarks": "hot enq,td,retail", "lastFollowup": "", "followupCount": 0, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-31", "source": "Meta", "campaign": "Brand Search", "name": "Naresh", "product": "Activa 6G", "phone": "9606622760", "email": "", "area": "Mekhri circle", "city": "", "remarks": "", "lastFollowup": "Adhar pan", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-31", "source": "Meta", "campaign": "Brand Search", "name": "Muneeraj", "product": "Activa 6G", "phone": "9738217115", "email": "", "area": "Yalahanka", "city": "", "remarks": "", "lastFollowup": "Customer will call back and confirm", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-31", "source": "Meta", "campaign": "Brand Search", "name": "Sandeepan", "product": "Activa 6G", "phone": "7000504215", "email": "", "area": "Mekhri circle", "city": "", "remarks": "", "lastFollowup": "Planning", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-31", "source": "Meta", "campaign": "Brand Search", "name": "Manjula", "product": "Activa 6G", "phone": "9108621166", "email": "", "area": "Mekhri circle", "city": "", "remarks": "", "lastFollowup": "Overdue", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-31", "source": "Meta", "campaign": "Brand Search", "name": "Musrak", "product": "Shine 125", "phone": "9036191924", "email": "", "area": "Tanisandra", "city": "", "remarks": "hot enq,td,retail", "lastFollowup": "", "followupCount": 0, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-31", "source": "Meta", "campaign": "Brand Search", "name": "Kumar", "product": "Activa 6G", "phone": "9731034576", "email": "", "area": "Rt nagar", "city": "", "remarks": "", "lastFollowup": "Need vehicle qutaion", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-31", "source": "Meta", "campaign": "Brand Search", "name": "Sharanabasava", "product": "Activa 6G", "phone": "8431886103", "email": "", "area": "Yalahanka", "city": "", "remarks": "", "lastFollowup": "Adhar pan", "followupCount": 2, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-31", "source": "Meta", "campaign": "Brand Search", "name": "Syed", "product": "Activa 6G", "phone": "9945688799", "email": "", "area": "Rt nagar", "city": "", "remarks": "", "lastFollowup": "Visiting tomorrow", "followupCount": 1, "enquiry": false, "td": false, "booking": false, "retail": false}, {"date": "2026-07-31", "source": "Meta", "campaign": "Brand Search", "name": "Mirza", "product": "QC1", "phone": "9102472282", "email": "", "area": "Mekhri circle", "city": "", "remarks": "hot enq,td,retail", "lastFollowup": "Visiting today", "followupCount": 1, "enquiry": true, "td": true, "booking": false, "retail": true}, {"date": "2026-07-31", "source": "Meta", "campaign": "Brand Search", "name": "Imshan ", "product": "Activa 6G", "phone": "9906691111", "email": "", "area": "Yalahanka", "city": "", "remarks": "hot enq,td,booking", "lastFollowup": "", "followupCount": 0, "enquiry": true, "td": true, "booking": true, "retail": false}];
+
+const SOURCES_ALL   = ["Google","Meta","Google (IC)","Meta (IC)","Car/Bike Dekho","Car/Bike Wala","91 Wheels","IVRS","CRM","OEM"];
+const SOURCES_PAID  = ["Google","Meta","Google (IC)","Meta (IC)"];
+
+let currentData = null;
+let customers = [];
+let currentView = 'ftd';
+let currentSection = 'overview';
+let funnelChartInst = null, spendChartInst = null, locationChartInst = null;
+let winVehChartInst = null, loseVehChartInst = null, lostReasonChartInst = null, lostVehChartInst = null;
+
+/* ---------------- LOST CLASSIFICATION ---------------- */
+const LOST_REASON_RULES = [
+  { reason: 'Not Interested', re: /not int|not interested|not req|not enq/ },
+  { reason: 'Finance / CIBIL Reject', re: /cibil|low cibil|reject|no cibil/ },
+  { reason: 'Location — Too Far', re: /too far|too for/ },
+  { reason: 'Unreachable', re: /switch off|not connecting|incoming barred|^rnr$|no response/ },
+  { reason: 'Purchased Elsewhere', re: /purchased|tvs purchased|alredy purchased|already purchased/ },
+];
+function classifyLost(c){
+  if(c.retail) return { lost:false, reason:'' };
+  if(c.lost === true) return { lost:true, reason: c.lostReason || 'Manually marked' };
+  const hay = ((c.lastFollowup||'') + ' ' + (c.remarks||'')).toString().toLowerCase().trim();
+  if(!hay) return { lost:false, reason:'' };
+  for(const rule of LOST_REASON_RULES){ if(rule.re.test(hay)) return { lost:true, reason: rule.reason }; }
+  return { lost:false, reason:'' };
+}
+function lostCustomers(){ return customers.filter(c => classifyLost(c).lost); }
+
+/* ---------------- CUSTOMER IDs ---------------- */
+let customerIdCounter = 1;
+function assignCustomerIds(){
+  customers.forEach(c=>{
+    if(!c.id){ c.id = 'cid_' + (customerIdCounter++); }
+    else{ const n = parseInt(String(c.id).replace('cid_',''),10); if(!isNaN(n) && n>=customerIdCounter) customerIdCounter = n+1; }
+  });
+}
+function persistCustomers(){
+  try{
+    localStorage.setItem('mis_last_sync_customers', JSON.stringify(customers));
+    localStorage.setItem('mis_customers_saved_time', Date.now().toString());
+    const el = document.getElementById('sync-text');
+    if(el) el.textContent = 'All changes auto-saved to this browser · ' + new Date().toLocaleTimeString();
+    const dot = document.getElementById('sync-dot');
+    if(dot) dot.style.background = 'var(--green)';
+  }catch(e){
+    const el = document.getElementById('sync-text');
+    if(el) el.textContent = 'Could not auto-save — this browser may be blocking local storage.';
+    const dot = document.getElementById('sync-dot');
+    if(dot) dot.style.background = 'var(--red)';
+  }
+}
+
+/* ---------------- FOLLOW-UP SCHEDULING (every 3 days from enquiry, max 5) ---------------- */
+const MAX_FOLLOWUPS = 5;
+const FOLLOWUP_INTERVAL_DAYS = 3;
+function parseISODate(s){
+  if(!s) return null;
+  const parts = String(s).slice(0,10).split('-');
+  if(parts.length !== 3) return null;
+  const d = new Date(Date.UTC(+parts[0], +parts[1]-1, +parts[2]));
+  return isNaN(d.getTime()) ? null : d;
+}
+function addDaysISO(dateStr, n){
+  const d = parseISODate(dateStr); if(!d) return '';
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0,10);
+}
+function fmtDateDisplay(iso){
+  const d = parseISODate(iso); if(!d) return iso || '—';
+  return d.toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'});
+}
+function followupStatus(c){
+  const lc = classifyLost(c);
+  if(c.retail) return { type:'done', label:'Won — no more follow-ups' };
+  if(lc.lost) return { type:'lost', label:'Lost' };
+  const count = Math.min(Number(c.followupCount)||0, MAX_FOLLOWUPS);
+  if(count >= MAX_FOLLOWUPS) return { type:'max', label:`${MAX_FOLLOWUPS}/${MAX_FOLLOWUPS} follow-ups done` };
+  if(!c.date) return { type:'unknown', label:'No enquiry date' };
+  const nextDate = addDaysISO(c.date, FOLLOWUP_INTERVAL_DAYS * (count+1));
+  return { type:'due', date: nextDate, count };
+}
+function nextFollowupCell(c){
+  const st = followupStatus(c);
+  const today = new Date().toISOString().slice(0,10);
+  if(st.type==='due'){
+    const overdue = st.date && st.date < today;
+    return `<span class="fu-badge ${overdue?'fu-overdue':'fu-upcoming'}">${esc(fmtDateDisplay(st.date))}${overdue?' (overdue)':''}</span>`;
+  }
+  if(st.type==='max') return `<span class="fu-badge fu-max">${esc(st.label)}</span>`;
+  if(st.type==='lost') return `<span class="fu-badge fu-lost-tag">Lost</span>`;
+  if(st.type==='done') return `<span class="fu-badge fu-done">Won</span>`;
+  return '<span class="rec-none">—</span>';
+}
+
+/* ---------------- LOGIN ---------------- */
+function attemptLogin(){
+  const id = document.getElementById('login-id').value.trim();
+  const pw = document.getElementById('login-pass').value;
+  const err = document.getElementById('login-error');
+  if(id === VALID_ID && pw === VALID_PASS){
+    err.textContent = '';
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    sessionStorage.setItem('mis_logged_in','1');
+    boot();
+  } else {
+    err.textContent = 'Incorrect login ID or password.';
+  }
+}
+document.getElementById('login-pass').addEventListener('keydown', e=>{ if(e.key==='Enter') attemptLogin(); });
+document.getElementById('login-id').addEventListener('keydown', e=>{ if(e.key==='Enter') attemptLogin(); });
+
+function logout(){
+  sessionStorage.removeItem('mis_logged_in');
+  document.getElementById('dashboard').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('login-pass').value='';
+}
+
+/* ---------------- BOOT ---------------- */
+function boot(){
+  const cachedMis = localStorage.getItem('mis_last_sync_data');
+  const cachedCust = localStorage.getItem('mis_last_sync_customers');
+  const cachedAt = localStorage.getItem('mis_last_sync_time');
+  const custSavedAt = localStorage.getItem('mis_customers_saved_time');
+  try{ currentData = cachedMis ? JSON.parse(cachedMis) : DEFAULT_MIS_DATA; }catch(e){ currentData = DEFAULT_MIS_DATA; }
+  try{ customers = cachedCust ? JSON.parse(cachedCust) : DEFAULT_CUSTOMERS; }catch(e){ customers = DEFAULT_CUSTOMERS; }
+  assignCustomerIds();
+  if(custSavedAt){
+    document.getElementById('sync-text').textContent = 'Restored your saved data · last change ' + new Date(parseInt(custSavedAt)).toLocaleString();
+    document.getElementById('sync-dot').style.background = 'var(--green)';
+  } else if(cachedMis){
+    document.getElementById('sync-text').textContent = 'Last Excel synced ' + new Date(parseInt(cachedAt)).toLocaleString();
+  } else {
+    document.getElementById('sync-text').textContent = 'Loaded from workbook snapshot — no local changes yet';
+  }
+  populateSourceFilter();
+  render();
+  renderCustomerTable();
+  renderLocationView();
+  renderLostView();
+  startOrStopCallSync();
+}
+
+function setView(v){
+  currentView = v;
+  document.querySelectorAll('.toggle-row button').forEach(b=>b.classList.toggle('active', b.dataset.view===v));
+  render();
+}
+
+function setSection(sec){
+  currentSection = sec;
+  document.querySelectorAll('.section-tabs button').forEach(b=>b.classList.toggle('active', b.dataset.sec===sec));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+sec).classList.add('active');
+  if(sec==='location'){ setTimeout(renderLocationChart, 30); }
+  if(sec==='overview'){ setTimeout(()=>{ renderFunnelChartFromCurrent(); renderSpendChartFromCurrent(); renderWinLoseVehicleCharts(); }, 30); }
+  if(sec==='lost'){ setTimeout(renderLostView, 30); }
+}
+
+/* ---------------- FILE UPLOAD / LIVE SYNC ---------------- */
+function handleFileUpload(evt){
+  const file = evt.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+      const parsedMis = parseDailyMisSheet(wb);
+      const parsedCust = parseDailyLmsSheet(wb);
+      currentData = parsedMis;
+      customers = parsedCust.length ? parsedCust : customers;
+      assignCustomerIds();
+      localStorage.setItem('mis_last_sync_data', JSON.stringify(parsedMis));
+      localStorage.setItem('mis_last_sync_customers', JSON.stringify(customers));
+      localStorage.setItem('mis_last_sync_time', Date.now().toString());
+      document.getElementById('sync-text').textContent = 'Last synced ' + new Date().toLocaleString();
+      document.getElementById('sync-dot').style.background = 'var(--green)';
+      populateSourceFilter();
+      render();
+      renderCustomerTable();
+      renderLocationView();
+      renderLostView();
+    }catch(err){
+      alert('Could not read that file as a V-Lead MIS workbook. Make sure it has "Daily MIS" and "Daily LMS" sheets in the original layout.\n\n' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  evt.target.value = '';
+}
+
+/* ---------------- FULL BACKUP / RESTORE (portable across browsers/devices/re-logins) ---------------- */
+function exportBackup(){
+  const payload = {
+    _type: 'vlead-mis-backup',
+    exportedAt: new Date().toISOString(),
+    currentData,
+    customers
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'vlead_mis_backup_' + new Date().toISOString().slice(0,10) + '.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function handleBackupRestore(evt){
+  const file = evt.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    try{
+      const payload = JSON.parse(e.target.result);
+      if(!payload || !Array.isArray(payload.customers)) throw new Error('This file does not look like a V-Lead MIS backup.');
+      currentData = payload.currentData || DEFAULT_MIS_DATA;
+      customers = payload.customers;
+      assignCustomerIds();
+      localStorage.setItem('mis_last_sync_data', JSON.stringify(currentData));
+      localStorage.setItem('mis_last_sync_customers', JSON.stringify(customers));
+      localStorage.setItem('mis_customers_saved_time', Date.now().toString());
+      document.getElementById('sync-text').textContent = 'Restored from backup file · ' + new Date().toLocaleString();
+      document.getElementById('sync-dot').style.background = 'var(--green)';
+      populateSourceFilter();
+      render();
+      renderCustomerTable();
+      renderLocationView();
+      renderLostView();
+      alert('Backup restored successfully — ' + customers.length + ' customer records loaded.');
+    }catch(err){
+      alert('Could not restore this backup file.\n\n' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  evt.target.value = '';
+}
+
+function parseDailyMisSheet(wb){
+  const shName = wb.SheetNames.find(n => n.trim().toLowerCase() === 'daily mis');
+  if(!shName) throw new Error('No "Daily MIS" sheet found in this workbook.');
+  const ws = wb.Sheets[shName];
+  const setupName = wb.SheetNames.find(n => n.trim().toLowerCase() === 'setup');
+  const setupWs = setupName ? wb.Sheets[setupName] : null;
+
+  const g = (addr) => { const c = ws[addr]; return (c && c.v !== undefined) ? c.v : 0; };
+  const gs = (addr) => { if(!setupWs) return ''; const c = setupWs[addr]; return (c && c.v !== undefined) ? c.v : ''; };
+
+  const rowEng   = {"Google":5,"Meta":6,"Google (IC)":7,"Meta (IC)":8,"Car/Bike Dekho":9,"Car/Bike Wala":10,"91 Wheels":11,"IVRS":12,"CRM":13,"OEM":14};
+  const rowConv  = {"Google":18,"Meta":19,"Google (IC)":20,"Meta (IC)":21,"Car/Bike Dekho":22,"Car/Bike Wala":23,"91 Wheels":24,"IVRS":25,"CRM":26,"OEM":27};
+  const rowCost  = {"Google":33,"Meta":34,"Google (IC)":35,"Meta (IC)":36};
+
+  const engagement = {}, conversions = {}, cost = {};
+
+  for(const src in rowEng){
+    const r = rowEng[src];
+    engagement[src] = {
+      budget_start: g('C'+r), budget_used: g('D'+r), budget_remaining: g('E'+r),
+      spend_ftd: g('F'+r), spend_mtd: g('G'+r), leads_ftd: g('H'+r), leads_mtd: g('I'+r),
+      enq_ftd: g('J'+r), enq_mtd: g('K'+r), td_ftd: g('L'+r), td_mtd: g('M'+r),
+      booking_ftd: g('N'+r), booking_mtd: g('O'+r), retail_ftd: g('P'+r), retail_mtd: g('Q'+r)
+    };
+  }
+  for(const src in rowConv){
+    const r = rowConv[src];
+    conversions[src] = { l_e_pct:g('C'+r), e_td_pct:g('D'+r), td_b_pct:g('E'+r), e_b_pct:g('F'+r), b_r_pct:g('G'+r) };
+  }
+  for(const src in rowCost){
+    const r = rowCost[src];
+    cost[src] = {
+      budget_planned:g('C'+r), budget_used:g('D'+r), budget_remaining:g('E'+r),
+      reach_ftd:g('F'+r), reach_mtd:g('G'+r), impr_ftd:g('H'+r), impr_mtd:g('I'+r),
+      clicks_ftd:g('J'+r), clicks_mtd:g('K'+r), cpr_ftd:g('L'+r), cpr_mtd:g('M'+r),
+      ctr_ftd:g('N'+r), ctr_mtd:g('O'+r), cpl_ftd:g('P'+r), cpl_mtd:g('Q'+r),
+      cpb_ftd:g('R'+r), cpb_mtd:g('S'+r)
+    };
+  }
+  return { meta: { brand: gs('C4') || DEFAULT_MIS_DATA.meta.brand, month: gs('C5') || DEFAULT_MIS_DATA.meta.month }, engagement, conversions, cost };
+}
+
+function classifyRemarks(remarks){
+  const r = (remarks||'').toString().toLowerCase();
+  const enquiry = r.trim().length > 0;
+  const td = /td|test drive/.test(r);
+  const booking = r.indexOf('book') !== -1;
+  const retail = (r.indexOf('retail') !== -1) || (r.indexOf('deliver') !== -1);
+  return {enquiry, td, booking, retail};
+}
+
+function excelDateToStr(v){
+  if(v === undefined || v === null || v === '') return '';
+  if(v instanceof Date) return v.toISOString().slice(0,10);
+  if(typeof v === 'number'){
+    const d = XLSX.SSF ? XLSX.SSF.parse_date_code(v) : null;
+    if(d) return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+  }
+  return String(v);
+}
+
+function parseDailyLmsSheet(wb){
+  const shName = wb.SheetNames.find(n => n.trim().toLowerCase() === 'daily lms');
+  if(!shName) return [];
+  const ws = wb.Sheets[shName];
+  const range = XLSX.utils.decode_range(ws['!ref']);
+  const out = [];
+  for(let r = 2; r <= range.e.r; r++){ // row index 2 = Excel row 3 (0-indexed)
+    const cell = (col) => { const addr = XLSX.utils.encode_cell({r, c: col}); const c = ws[addr]; return (c && c.v !== undefined) ? c.v : null; };
+    const marker = cell(0);   // A
+    const name = cell(5);     // F
+    if(marker && String(marker).trim() === '*') continue;
+    if(!name) continue;
+    const remarks = cell(11); // L
+    const followups = [];
+    for(let c = 12; c <= 19; c++){ const v = cell(c); if(v) followups.push(v); } // M..T
+    const status = classifyRemarks(remarks);
+    out.push({
+      date: excelDateToStr(cell(2)),        // C
+      source: cell(3) || '',                // D
+      campaign: cell(4) || '',              // E
+      name: name || '',
+      product: cell(6) || '',               // G
+      phone: cell(7) ? String(cell(7)) : '',// H
+      email: cell(8) || '',                 // I
+      area: cell(9) || '',                  // J
+      city: cell(10) || '',                 // K
+      remarks: remarks || '',
+      lastFollowup: followups.length ? followups[followups.length-1] : '',
+      followupCount: followups.length,
+      enquiry: status.enquiry, td: status.td, booking: status.booking, retail: status.retail
+    });
+  }
+  return out;
+}
+
+/* ---------------- FORMAT HELPERS ---------------- */
+function fmtNum(n){ n = Number(n)||0; return n.toLocaleString('en-IN', {maximumFractionDigits:0}); }
+function fmtMoney(n){ n = Number(n)||0; return '₹' + n.toLocaleString('en-IN', {maximumFractionDigits:0}); }
+function fmtPct(n){ n = Number(n)||0; return (n*100).toFixed(1) + '%'; }
+function esc(s){ return (s===undefined||s===null) ? '' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* ================= OVERVIEW RENDER ================= */
+// FTD ("Today") must track whichever date is actually latest in the loaded
+// data, not the device's real-world calendar date. Data is synced in whole
+// months (e.g. all of July), so once the calendar rolls into the next month
+// the real "today" no longer exists in the dataset and FTD would go blank/
+// mismatched. Using the latest date present in the customer list keeps FTD
+// meaningful month-on-month, automatically, as each new month's data lands.
+function getLatestDataDate(){
+  let latest = '';
+  customers.forEach(c=>{ if(c.date && c.date > latest) latest = c.date; });
+  return latest || new Date().toISOString().slice(0,10);
+}
+function customerFunnelTotals(){
+  const todayStr = getLatestDataDate();
+  const monthStr = todayStr.slice(0,7); // YYYY-MM of the latest synced data
+  const list = currentView === 'ftd'
+    ? customers.filter(c => c.date === todayStr)
+    : customers.filter(c => (c.date||'').slice(0,7) === monthStr);
+  return {
+    leads: list.length,
+    enq: list.filter(c=>c.enquiry).length,
+    td: list.filter(c=>c.td).length,
+    booking: list.filter(c=>c.booking).length,
+    retail: list.filter(c=>c.retail).length
+  };
+}
+function render(){
+  const d = currentData;
+  document.getElementById('brand-name').textContent = (d.meta.brand && d.meta.brand !== 'Enter Brand Name here') ? d.meta.brand : 'V-Lead Dealership';
+  document.getElementById('reporting-month').textContent = 'Reporting month — ' + (d.meta.month || '—');
+
+  const suf = currentView;
+  const eng = d.engagement;
+  let totBudgetUsed=0, totSpend=0;
+  SOURCES_ALL.forEach(s=>{
+    const row = eng[s] || {};
+    totBudgetUsed += Number(row.budget_used)||0;
+    totSpend      += Number(row['spend_'+suf])||0;
+  });
+  // Leads / Enquiries / TD / Bookings / Retails are computed live from the Customer Data
+  // table (Daily LMS) so that manual "+ Add Enquiry" entries, follow-up updates, and
+  // Excel Daily LMS imports all show up here immediately — instead of relying on the
+  // separately-typed Daily MIS aggregate numbers, which can drift out of sync.
+  const cft = customerFunnelTotals();
+  const totLeads = cft.leads, totEnq = cft.enq, totTd = cft.td, totBooking = cft.booking, totRetail = cft.retail;
+
+  const tag = suf==='ftd' ? ' (Today)' : ' (MTD)';
+  const kpis = [
+    {lbl:'Budget Used (MTD)', val: fmtMoney(totBudgetUsed), c:'c1'},
+    {lbl:'Spend'+tag, val: fmtMoney(totSpend), c:'c1'},
+    {lbl:'Leads'+tag, val: fmtNum(totLeads), c:'c2'},
+    {lbl:'Enquiries'+tag, val: fmtNum(totEnq), c:'c2'},
+    {lbl:'Test Drives'+tag, val: fmtNum(totTd), c:'c3'},
+    {lbl:'Bookings'+tag, val: fmtNum(totBooking), c:'c4'},
+    {lbl:'Retails'+tag, val: fmtNum(totRetail), c:'c4'},
+  ];
+  document.getElementById('kpi-grid').innerHTML = kpis.map(k=>`
+    <div class="kpi-card ${k.c}"><div class="lbl">${k.lbl}</div><div class="val num">${k.val}</div><div class="accent"></div></div>`).join('');
+
+  const ftdLabel = fmtDateDisplay(getLatestDataDate());
+  document.getElementById('funnel-caption').textContent = (suf==='ftd'? ftdLabel+', all sources' : 'MTD, all sources');
+  document.getElementById('spend-caption').textContent = (suf==='ftd'? ftdLabel+', paid sources' : 'MTD, paid sources');
+  const ftdBtn = document.querySelector('.toggle-row button[data-view="ftd"]');
+  if(ftdBtn) ftdBtn.textContent = 'Latest Day (FTD) — ' + ftdLabel;
+
+  renderFunnelChart(totLeads, totEnq, totTd, totBooking, totRetail);
+  renderSpendChart(eng, suf);
+  renderEngagementTable(eng, suf);
+  renderConversionTable(d.conversions);
+  renderCostTable(d.cost, suf);
+  renderWinLoseVehicleCharts();
+}
+
+/* ================= WIN / LOSS VEHICLE CHARTS ================= */
+function productBreakdown(list){
+  const map = {};
+  list.forEach(c=>{
+    const key = (c.product && String(c.product).trim()) ? String(c.product).trim() : 'Unspecified';
+    map[key] = (map[key]||0) + 1;
+  });
+  return Object.entries(map).sort((a,b)=>b[1]-a[1]);
+}
+const PIE_COLORS = ['#f5a623','#2dd4bf','#57c785','#8b7cf6','#e25c5c','#9db4ff','#e8944f','#5fd0d6','#c97f14','#7c9cf6'];
+
+function renderWinLoseVehicleCharts(){
+  const winEl = document.getElementById('winningVehicleChart');
+  const loseEl = document.getElementById('losingVehicleChart');
+  if(!winEl || !loseEl) return;
+
+  const won = productBreakdown(customers.filter(c=>c.retail)).slice(0,8);
+  const lost = productBreakdown(lostCustomers()).slice(0,8);
+
+  if(winVehChartInst) winVehChartInst.destroy();
+  winVehChartInst = new Chart(winEl.getContext('2d'), {
+    type:'pie',
+    data:{ labels: won.map(x=>x[0]), datasets:[{ data: won.map(x=>x[1]), backgroundColor: PIE_COLORS, borderColor:'#1b2129', borderWidth:2 }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{color:'#93a1ad', boxWidth:10, font:{size:10.5}} } } }
+  });
+
+  if(loseVehChartInst) loseVehChartInst.destroy();
+  loseVehChartInst = new Chart(loseEl.getContext('2d'), {
+    type:'pie',
+    data:{ labels: lost.map(x=>x[0]), datasets:[{ data: lost.map(x=>x[1]), backgroundColor: PIE_COLORS, borderColor:'#1b2129', borderWidth:2 }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{color:'#93a1ad', boxWidth:10, font:{size:10.5}} } } }
+  });
+}
+function renderFunnelChartFromCurrent(){ render(); }
+function renderSpendChartFromCurrent(){ /* handled inside render() */ }
+
+function renderFunnelChart(leads, enq, td, booking, retail){
+  const el = document.getElementById('funnelChart'); if(!el) return;
+  const ctx = el.getContext('2d');
+  if(funnelChartInst) funnelChartInst.destroy();
+  funnelChartInst = new Chart(ctx, {
+    type:'bar',
+    data:{ labels:['Leads','Enquiries','Test Drives','Bookings','Retails'],
+      datasets:[{ data:[leads, enq, td, booking, retail], backgroundColor:['#f5a623','#e8944f','#2dd4bf','#57c785','#8b7cf6'], borderRadius:6, maxBarThickness:46 }] },
+    options:{ indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ x:{ grid:{color:'#242c35'}, ticks:{color:'#93a1ad'} }, y:{ grid:{display:false}, ticks:{color:'#e9edf1'} } } }
+  });
+}
+
+function renderSpendChart(eng, suf){
+  const el = document.getElementById('spendChart'); if(!el) return;
+  const ctx = el.getContext('2d');
+  const labels = SOURCES_PAID;
+  const vals = labels.map(s => Number((eng[s]||{})['spend_'+suf])||0);
+  if(spendChartInst) spendChartInst.destroy();
+  spendChartInst = new Chart(ctx, {
+    type:'doughnut',
+    data:{ labels, datasets:[{ data: vals, backgroundColor:['#f5a623','#e8944f','#2dd4bf','#57c785'], borderColor:'#1b2129', borderWidth:2 }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{color:'#93a1ad', boxWidth:10, font:{size:11}} } } }
+  });
+}
+
+function renderEngagementTable(eng, suf){
+  const tbody = document.querySelector('#engagement-table tbody');
+  tbody.innerHTML = SOURCES_ALL.map(s=>{
+    const r = eng[s] || {};
+    const tagHtml = SOURCES_PAID.includes(s) ? '<span class="paid-tag">PAID</span>' : '<span class="organic-tag">ORGANIC</span>';
+    const rem = Number(r.budget_remaining)||0;
+    return `<tr><td>${s}${tagHtml}</td><td>${fmtMoney(r.budget_used)}</td><td class="${rem<0?'neg':''}">${fmtMoney(rem)}</td>
+      <td>${fmtMoney(r['spend_'+suf])}</td><td>${fmtNum(r['leads_'+suf])}</td><td>${fmtNum(r['enq_'+suf])}</td>
+      <td>${fmtNum(r['td_'+suf])}</td><td>${fmtNum(r['booking_'+suf])}</td><td>${fmtNum(r['retail_'+suf])}</td></tr>`;
+  }).join('');
+}
+function renderConversionTable(conv){
+  const tbody = document.querySelector('#conversion-table tbody');
+  tbody.innerHTML = SOURCES_ALL.map(s=>{
+    const r = conv[s] || {};
+    return `<tr><td>${s}</td><td>${fmtPct(r.l_e_pct)}</td><td>${fmtPct(r.e_td_pct)}</td><td>${fmtPct(r.td_b_pct)}</td><td>${fmtPct(r.e_b_pct)}</td><td>${fmtPct(r.b_r_pct)}</td></tr>`;
+  }).join('');
+}
+function renderCostTable(cost, suf){
+  const tbody = document.querySelector('#cost-table tbody');
+  tbody.innerHTML = SOURCES_PAID.map(s=>{
+    const r = cost[s] || {};
+    return `<tr><td>${s}</td><td>${fmtNum(r['reach_'+suf])}</td><td>${fmtNum(r['impr_'+suf])}</td><td>${fmtNum(r['clicks_'+suf])}</td>
+      <td>${fmtPct(r['ctr_'+suf])}</td><td>${fmtMoney(r['cpl_'+suf])}</td><td>${fmtMoney(r['cpb_'+suf])}</td></tr>`;
+  }).join('');
+}
+
+/* ================= CUSTOMER DATA ================= */
+function populateSourceFilter(){
+  const sel = document.getElementById('cust-source-filter');
+  const cur = sel.value;
+  const uniq = Array.from(new Set(customers.map(c=>c.source).filter(Boolean))).sort();
+  sel.innerHTML = '<option value="">All sources</option>' + uniq.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('');
+  sel.value = uniq.includes(cur) ? cur : '';
+}
+
+function filteredCustomers(){
+  const q = (document.getElementById('cust-search').value||'').toLowerCase().trim();
+  const src = document.getElementById('cust-source-filter').value;
+  const status = document.getElementById('cust-status-filter').value;
+  return customers.filter(c=>{
+    if(src && c.source !== src) return false;
+    if(status){
+      if(status==='none'){ if(c.enquiry||c.td||c.booking||c.retail) return false; }
+      else if(status==='lost'){ if(!classifyLost(c).lost) return false; }
+      else if(!c[status]) return false;
+    }
+    if(q){
+      const hay = [c.name,c.phone,c.area,c.city,c.remarks,c.product,c.source].join(' ').toLowerCase();
+      if(hay.indexOf(q) === -1) return false;
+    }
+    return true;
+  });
+}
+
+function statusBadges(c){
+  const lc = classifyLost(c);
+  if(!c.enquiry && !c.td && !c.booking && !c.retail && !lc.lost) return '<span class="badge none">New</span>';
+  let html = '';
+  if(c.enquiry) html += '<span class="badge enq">Enquiry</span>';
+  if(c.td) html += '<span class="badge td">TD</span>';
+  if(c.booking) html += '<span class="badge bk">Booked</span>';
+  if(c.retail) html += '<span class="badge rt">Retail</span>';
+  if(lc.lost) html += `<span class="badge lost" title="${esc(lc.reason)}">Lost</span>`;
+  return html;
+}
+function recordingCell(c){
+  const url = (c.recording||'').toString().trim();
+  if(!url) return '<span class="rec-none">—</span>';
+  return `<a class="rec-link" href="${esc(url)}" target="_blank" rel="noopener">▶ Play</a>`;
+}
+
+function renderCustomerTable(){
+  const rows = filteredCustomers();
+  document.getElementById('cust-count-tag').textContent = customers.length + ' total leads';
+  document.getElementById('cust-result-count').textContent = `Showing ${rows.length} of ${customers.length} leads`;
+  const tbody = document.querySelector('#customer-table tbody');
+  tbody.innerHTML = rows.map(c=>`
+    <tr>
+      <td style="text-align:left">${esc(c.date)}</td>
+      <td style="text-align:left">${esc(c.source)}</td>
+      <td style="text-align:left;font-weight:600;color:var(--text)">${esc(c.name)}</td>
+      <td style="text-align:left">${esc(c.phone)}</td>
+      <td style="text-align:left">${esc(c.product)}</td>
+      <td style="text-align:left">${esc(c.area)}</td>
+      <td style="text-align:left">${esc(c.city)}</td>
+      <td style="text-align:left;max-width:220px;white-space:normal">${esc(c.remarks)}</td>
+      <td style="text-align:left;max-width:200px;white-space:normal">${esc(c.lastFollowup)}</td>
+      <td style="text-align:left"><button class="status-edit-btn" onclick="openFollowupModal('${esc(c.id)}')">${statusBadges(c)}<span class="edit-ic">✎</span></button></td>
+      <td style="text-align:left">${nextFollowupCell(c)}</td>
+      <td style="text-align:left">${recordingCell(c)}</td>
+    </tr>`).join('');
+}
+
+const CUSTOMER_EXPORT_COLUMNS = [
+  ['date','Date'],['source','Source'],['campaign','Campaign'],['name','Customer Name'],['product','Product'],
+  ['phone','Phone'],['email','Email'],['area','Area'],['city','City'],['remarks','Remarks'],
+  ['lastFollowup','Last Follow-up'],['followupCount','Follow-up Count'],
+  ['enquiry','Enquiry'],['td','TD'],['booking','Booking'],['retail','Retail'],
+  ['lost','Lost'],['lostReason','Lost Reason'],['recording','Recording Link']
+];
+
+function rowsToAoA(rows, columns){
+  const header = columns.map(c=>c[1]);
+  const body = rows.map(r => columns.map(c=>{
+    const v = r[c[0]];
+    if(typeof v === 'boolean') return v ? 'Yes' : 'No';
+    return v===undefined||v===null ? '' : v;
+  }));
+  return [header, ...body];
+}
+
+function downloadCSV(aoa, filename){
+  const csv = aoa.map(row => row.map(cell=>{
+    const s = String(cell).replace(/"/g,'""');
+    return /[",\n]/.test(s) ? `"${s}"` : s;
+  }).join(',')).join('\r\n');
+  const blob = new Blob(["\ufeff"+csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+function downloadXLSX(aoa, filename, sheetName){
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName || 'Sheet1');
+  XLSX.writeFile(wb, filename);
+}
+
+function toggleExportMenu(id){
+  document.querySelectorAll('.export-dropdown').forEach(el=>{ if(el.id!==id) el.classList.remove('open'); });
+  document.getElementById(id).classList.toggle('open');
+}
+document.addEventListener('click', (e)=>{
+  if(!e.target.closest('.export-menu')) document.querySelectorAll('.export-dropdown').forEach(el=>el.classList.remove('open'));
+});
+
+function exportCustomersCSV(){
+  const aoa = rowsToAoA(filteredCustomers(), CUSTOMER_EXPORT_COLUMNS);
+  downloadCSV(aoa, 'customer_data.csv');
+}
+function exportCustomersXLSX(){
+  const aoa = rowsToAoA(filteredCustomers(), CUSTOMER_EXPORT_COLUMNS);
+  downloadXLSX(aoa, 'customer_data.xlsx', 'Customer Data');
+}
+
+/* ================= LOCATION-WISE ================= */
+function computeLocationSummary(){
+  const map = {};
+  customers.forEach(c=>{
+    const key = (c.area && String(c.area).trim()) ? String(c.area).trim() : 'Unspecified';
+    if(!map[key]) map[key] = {area:key, city:c.city||'', leads:0, enquiry:0, td:0, booking:0, retail:0};
+    map[key].leads++;
+    if(c.enquiry) map[key].enquiry++;
+    if(c.td) map[key].td++;
+    if(c.booking) map[key].booking++;
+    if(c.retail) map[key].retail++;
+    if(!map[key].city && c.city) map[key].city = c.city;
+  });
+  return Object.values(map).sort((a,b)=>b.leads-a.leads);
+}
+
+function filteredLocations(){
+  const q = (document.getElementById('loc-search').value||'').toLowerCase().trim();
+  const all = computeLocationSummary();
+  if(!q) return all;
+  return all.filter(l => (l.area+' '+l.city).toLowerCase().indexOf(q) !== -1);
+}
+
+function renderLocationView(){
+  const all = computeLocationSummary();
+  const totalLocations = all.length;
+  const totalEnq = all.reduce((s,l)=>s+l.enquiry,0);
+  const totalTd = all.reduce((s,l)=>s+l.td,0);
+  const totalBk = all.reduce((s,l)=>s+l.booking,0);
+  const totalRt = all.reduce((s,l)=>s+l.retail,0);
+  const topLoc = all[0] ? all[0].area : '—';
+
+  document.getElementById('loc-kpi-grid').innerHTML = [
+    {lbl:'Locations Covered', val: fmtNum(totalLocations), c:'c1'},
+    {lbl:'Enquiries (all locations)', val: fmtNum(totalEnq), c:'c2'},
+    {lbl:'Test Drives (all locations)', val: fmtNum(totalTd), c:'c3'},
+    {lbl:'Bookings (all locations)', val: fmtNum(totalBk), c:'c4'},
+    {lbl:'Retails (all locations)', val: fmtNum(totalRt), c:'c4'},
+    {lbl:'Top Location', val: `<span style="font-size:19px">${esc(topLoc)}</span>`, c:'c1'},
+  ].map(k=>`<div class="kpi-card ${k.c}"><div class="lbl">${k.lbl}</div><div class="val num">${k.val}</div><div class="accent"></div></div>`).join('');
+
+  renderLocationTable();
+  renderLocationChart();
+}
+
+function renderLocationTable(){
+  const rows = filteredLocations();
+  const tbody = document.querySelector('#location-table tbody');
+  tbody.innerHTML = rows.map(l=>{
+    const er = l.enquiry>0 ? (l.retail/l.enquiry) : 0;
+    return `<tr>
+      <td style="text-align:left;font-weight:600">${esc(l.area)}</td>
+      <td style="text-align:left">${esc(l.city)}</td>
+      <td>${fmtNum(l.leads)}</td><td>${fmtNum(l.enquiry)}</td><td>${fmtNum(l.td)}</td>
+      <td>${fmtNum(l.booking)}</td><td>${fmtNum(l.retail)}</td><td>${fmtPct(er)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderLocationChart(){
+  const el = document.getElementById('locationChart'); if(!el) return;
+  const top = computeLocationSummary().slice(0,10);
+  const ctx = el.getContext('2d');
+  if(locationChartInst) locationChartInst.destroy();
+  locationChartInst = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels: top.map(l=>l.area),
+      datasets:[
+        {label:'Enquiries', data: top.map(l=>l.enquiry), backgroundColor:'#9db4ff'},
+        {label:'Test Drives', data: top.map(l=>l.td), backgroundColor:'#2dd4bf'},
+        {label:'Bookings', data: top.map(l=>l.booking), backgroundColor:'#f5a623'},
+        {label:'Retails', data: top.map(l=>l.retail), backgroundColor:'#57c785'},
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ position:'top', labels:{color:'#93a1ad', boxWidth:10, font:{size:11}} } },
+      scales:{
+        x:{ grid:{display:false}, ticks:{color:'#93a1ad', maxRotation:40, minRotation:0, font:{size:10.5}} },
+        y:{ grid:{color:'#242c35'}, ticks:{color:'#93a1ad'}, beginAtZero:true }
+      }
+    }
+  });
+}
+
+const LOCATION_EXPORT_COLUMNS = [['area','Location (Area)'],['city','City'],['leads','Leads'],['enquiry','Enquiries'],['td','Test Drives'],['booking','Bookings'],['retail','Retails']];
+function exportLocationCSV(){ downloadCSV(rowsToAoA(filteredLocations(), LOCATION_EXPORT_COLUMNS), 'location_wise_data.csv'); }
+function exportLocationXLSX(){ downloadXLSX(rowsToAoA(filteredLocations(), LOCATION_EXPORT_COLUMNS), 'location_wise_data.xlsx', 'Location-wise'); }
+
+/* ================= LOST CASE ANALYSIS ================= */
+function populateLostReasonFilter(){
+  const sel = document.getElementById('lost-reason-filter'); if(!sel) return;
+  const cur = sel.value;
+  const reasons = Array.from(new Set(lostCustomers().map(c=>classifyLost(c).reason).filter(Boolean))).sort();
+  sel.innerHTML = '<option value="">All reasons</option>' + reasons.map(r=>`<option value="${esc(r)}">${esc(r)}</option>`).join('');
+  sel.value = reasons.includes(cur) ? cur : '';
+}
+
+function filteredLostCustomers(){
+  const q = (document.getElementById('lost-search').value||'').toLowerCase().trim();
+  const reason = document.getElementById('lost-reason-filter').value;
+  return lostCustomers().filter(c=>{
+    const lc = classifyLost(c);
+    if(reason && lc.reason !== reason) return false;
+    if(q){
+      const hay = [c.name,c.phone,c.area,c.city,c.remarks,c.product,c.source,lc.reason].join(' ').toLowerCase();
+      if(hay.indexOf(q) === -1) return false;
+    }
+    return true;
+  });
+}
+
+function renderLostView(){
+  const lost = lostCustomers();
+  const total = customers.length || 1;
+  const lostPct = lost.length / total;
+  const reasonCounts = {};
+  lost.forEach(c=>{ const r = classifyLost(c).reason || 'Other'; reasonCounts[r] = (reasonCounts[r]||0)+1; });
+  const topReason = Object.entries(reasonCounts).sort((a,b)=>b[1]-a[1])[0];
+  const vehCounts = productBreakdown(lost);
+  const topVehicle = vehCounts[0];
+
+  document.getElementById('lost-kpi-grid').innerHTML = [
+    {lbl:'Total Lost Cases', val: fmtNum(lost.length), c:'c1'},
+    {lbl:'Lost Rate (of all leads)', val: fmtPct(lostPct), c:'c1'},
+    {lbl:'Top Lost Reason', val: `<span style="font-size:17px">${esc(topReason?topReason[0]:'—')}</span>`, c:'c2'},
+    {lbl:'Top Lost Vehicle', val: `<span style="font-size:19px">${esc(topVehicle?topVehicle[0]:'—')}</span>`, c:'c3'},
+  ].map(k=>`<div class="kpi-card ${k.c}"><div class="lbl">${k.lbl}</div><div class="val num">${k.val}</div><div class="accent"></div></div>`).join('');
+
+  populateLostReasonFilter();
+  renderLostReasonChart(reasonCounts);
+  renderLostVehicleChart(vehCounts);
+  renderLostTable();
+}
+
+function renderLostReasonChart(reasonCounts){
+  const el = document.getElementById('lostReasonChart'); if(!el) return;
+  const entries = Object.entries(reasonCounts).sort((a,b)=>b[1]-a[1]);
+  if(lostReasonChartInst) lostReasonChartInst.destroy();
+  lostReasonChartInst = new Chart(el.getContext('2d'), {
+    type:'pie',
+    data:{ labels: entries.map(x=>x[0]), datasets:[{ data: entries.map(x=>x[1]), backgroundColor: PIE_COLORS, borderColor:'#1b2129', borderWidth:2 }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{color:'#93a1ad', boxWidth:10, font:{size:10.5}} } } }
+  });
+}
+
+function renderLostVehicleChart(vehCounts){
+  const el = document.getElementById('lostVehicleChart'); if(!el) return;
+  const top = vehCounts.slice(0,8);
+  if(lostVehChartInst) lostVehChartInst.destroy();
+  lostVehChartInst = new Chart(el.getContext('2d'), {
+    type:'pie',
+    data:{ labels: top.map(x=>x[0]), datasets:[{ data: top.map(x=>x[1]), backgroundColor: PIE_COLORS, borderColor:'#1b2129', borderWidth:2 }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{color:'#93a1ad', boxWidth:10, font:{size:10.5}} } } }
+  });
+}
+
+function renderLostTable(){
+  const rows = filteredLostCustomers();
+  const all = lostCustomers();
+  document.getElementById('lost-count-tag').textContent = all.length + ' lost cases';
+  document.getElementById('lost-result-count').textContent = `Showing ${rows.length} of ${all.length} lost cases`;
+  const tbody = document.querySelector('#lost-table tbody');
+  tbody.innerHTML = rows.map(c=>{
+    const lc = classifyLost(c);
+    return `<tr>
+      <td style="text-align:left">${esc(c.date)}</td>
+      <td style="text-align:left">${esc(c.source)}</td>
+      <td style="text-align:left;font-weight:600;color:var(--text)">${esc(c.name)}</td>
+      <td style="text-align:left">${esc(c.phone)}</td>
+      <td style="text-align:left">${esc(c.product)}</td>
+      <td style="text-align:left">${esc(c.area)}</td>
+      <td style="text-align:left"><span class="badge lost">${esc(lc.reason)}</span></td>
+      <td style="text-align:left;max-width:200px;white-space:normal">${esc(c.lastFollowup)}</td>
+      <td>${fmtNum(c.followupCount)}</td>
+      <td style="text-align:left">${recordingCell(c)}</td>
+    </tr>`;
+  }).join('');
+}
+
+const LOST_EXPORT_COLUMNS = [
+  ['date','Date'],['source','Source'],['name','Customer Name'],['phone','Phone'],['product','Product'],
+  ['area','Area'],['city','City'],['_reason','Lost Reason'],['lastFollowup','Last Follow-up'],
+  ['followupCount','Follow-up Count'],['recording','Recording Link']
+];
+function lostRowsForExport(){
+  return filteredLostCustomers().map(c => Object.assign({}, c, { _reason: classifyLost(c).reason }));
+}
+function exportLostCSV(){ downloadCSV(rowsToAoA(lostRowsForExport(), LOST_EXPORT_COLUMNS), 'lost_case_analysis.csv'); }
+function exportLostXLSX(){ downloadXLSX(rowsToAoA(lostRowsForExport(), LOST_EXPORT_COLUMNS), 'lost_case_analysis.xlsx', 'Lost Cases'); }
+
+/* ================= ADD ENQUIRY MODAL ================= */
+function openAddEnquiryModal(){
+  document.getElementById('ae-date').value = new Date().toISOString().slice(0,10);
+  const srcSel = document.getElementById('ae-source');
+  srcSel.innerHTML = SOURCES_ALL.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('');
+  ['ae-name','ae-phone','ae-product','ae-campaign','ae-area','ae-city','ae-email','ae-recording','ae-remarks','ae-lastfollowup']
+    .forEach(id=>document.getElementById(id).value='');
+  ['ae-enquiry','ae-td','ae-booking','ae-retail','ae-lost'].forEach(id=>document.getElementById(id).checked=false);
+  document.getElementById('ae-lostreason-wrap').style.display='none';
+  document.getElementById('ae-lostreason').value='Not Interested';
+  document.getElementById('add-enquiry-overlay').classList.add('open');
+}
+function closeAddEnquiryModal(){
+  document.getElementById('add-enquiry-overlay').classList.remove('open');
+}
+function submitNewEnquiry(){
+  const name = document.getElementById('ae-name').value.trim();
+  const phone = document.getElementById('ae-phone').value.trim();
+  if(!name || !phone){ alert('Please enter at least the customer name and phone number.'); return; }
+  const isLost = document.getElementById('ae-lost').checked;
+  const newCustomer = {
+    date: document.getElementById('ae-date').value || new Date().toISOString().slice(0,10),
+    source: document.getElementById('ae-source').value || 'CRM',
+    campaign: document.getElementById('ae-campaign').value.trim(),
+    name, phone,
+    product: document.getElementById('ae-product').value.trim(),
+    email: document.getElementById('ae-email').value.trim(),
+    area: document.getElementById('ae-area').value.trim(),
+    city: document.getElementById('ae-city').value.trim(),
+    remarks: document.getElementById('ae-remarks').value.trim(),
+    lastFollowup: document.getElementById('ae-lastfollowup').value.trim(),
+    followupCount: 0,
+    enquiry: document.getElementById('ae-enquiry').checked,
+    td: document.getElementById('ae-td').checked,
+    booking: document.getElementById('ae-booking').checked,
+    retail: document.getElementById('ae-retail').checked,
+    lost: isLost,
+    lostReason: isLost ? document.getElementById('ae-lostreason').value : '',
+    recording: document.getElementById('ae-recording').value.trim()
+  };
+  customers.unshift(newCustomer);
+  assignCustomerIds();
+  persistCustomers();
+  closeAddEnquiryModal();
+  populateSourceFilter();
+  renderCustomerTable();
+  renderLocationView();
+  render();
+  if(currentSection==='lost') renderLostView();
+  setSection('customers');
+}
+document.getElementById('add-enquiry-overlay').addEventListener('click', (e)=>{
+  if(e.target.id==='add-enquiry-overlay') closeAddEnquiryModal();
+});
+
+/* ---------------- FOLLOW-UP MODAL ---------------- */
+let activeFollowupId = null;
+function openFollowupModal(id){
+  const c = customers.find(x=>x.id===id); if(!c) return;
+  activeFollowupId = id;
+  document.getElementById('fu-title').textContent = c.name + (c.phone ? ' — ' + c.phone : '');
+  document.getElementById('fu-meta').textContent = `${c.product||'—'} · ${c.source||'—'} · Enquiry date ${c.date||'—'}`;
+  document.getElementById('fu-enquiry').checked = !!c.enquiry;
+  document.getElementById('fu-td').checked = !!c.td;
+  document.getElementById('fu-booking').checked = !!c.booking;
+  document.getElementById('fu-retail').checked = !!c.retail;
+  document.getElementById('fu-lost').checked = !!c.lost;
+  document.getElementById('fu-lostreason').value = c.lostReason || 'Not Interested';
+  document.getElementById('fu-lostreason-wrap').style.display = c.lost ? 'block' : 'none';
+
+  const st = followupStatus(c);
+  const count = Math.min(Number(c.followupCount)||0, MAX_FOLLOWUPS);
+  document.getElementById('fu-progress').textContent = `${count} of ${MAX_FOLLOWUPS} follow-ups used`;
+  document.getElementById('fu-next-date').textContent = st.type==='due' ? fmtDateDisplay(st.date) : st.label;
+
+  const noteWrap = document.getElementById('fu-note-wrap');
+  const canLogMore = !c.retail && count < MAX_FOLLOWUPS;
+  noteWrap.style.display = canLogMore ? 'block' : 'none';
+  document.getElementById('fu-note').value = '';
+  document.getElementById('fu-followup-date').value = new Date().toISOString().slice(0,10);
+
+  document.getElementById('followup-overlay').classList.add('open');
+}
+function closeFollowupModal(){
+  document.getElementById('followup-overlay').classList.remove('open');
+  activeFollowupId = null;
+}
+function saveFollowup(){
+  const c = customers.find(x=>x.id===activeFollowupId); if(!c) return;
+  c.enquiry = document.getElementById('fu-enquiry').checked;
+  c.td = document.getElementById('fu-td').checked;
+  c.booking = document.getElementById('fu-booking').checked;
+  c.retail = document.getElementById('fu-retail').checked;
+  c.lost = document.getElementById('fu-lost').checked;
+  c.lostReason = c.lost ? document.getElementById('fu-lostreason').value : '';
+
+  const noteWrapVisible = document.getElementById('fu-note-wrap').style.display !== 'none';
+  const note = document.getElementById('fu-note').value.trim();
+  if(noteWrapVisible && note){
+    const count = Math.min(Number(c.followupCount)||0, MAX_FOLLOWUPS);
+    if(count < MAX_FOLLOWUPS){
+      c.followupCount = count + 1;
+      c.lastFollowup = note;
+      if(!Array.isArray(c.followupLog)) c.followupLog = [];
+      c.followupLog.push({ date: document.getElementById('fu-followup-date').value || new Date().toISOString().slice(0,10), note });
+    }
+  }
+
+  persistCustomers();
+  closeFollowupModal();
+  renderCustomerTable();
+  renderLocationView();
+  render();
+  if(currentSection==='lost') renderLostView();
+}
+document.getElementById('followup-overlay').addEventListener('click', (e)=>{
+  if(e.target.id==='followup-overlay') closeFollowupModal();
+});
+
+/* ---------------- CALL SYNC (auto-create leads from GET /calls) ---------------- */
+const CALL_SYNC_KEY = 'mis_call_sync_settings';
+const CALL_SYNC_SEEN_KEY = 'mis_call_sync_seen_ids';
+let callSyncTimer = null;
+let callSyncBusy = false;
+
+function loadCallSyncSettings(){
+  try{
+    const raw = localStorage.getItem(CALL_SYNC_KEY);
+    return raw ? JSON.parse(raw) : { baseUrl:'', apiKey:'', intervalSec:60, source:'IVRS', enabled:false };
+  }catch(e){ return { baseUrl:'', apiKey:'', intervalSec:60, source:'IVRS', enabled:false }; }
+}
+function saveCallSyncSettingsObj(s){
+  localStorage.setItem(CALL_SYNC_KEY, JSON.stringify(s));
+}
+function getSeenCallIds(){
+  try{ return new Set(JSON.parse(localStorage.getItem(CALL_SYNC_SEEN_KEY) || '[]')); }catch(e){ return new Set(); }
+}
+function addSeenCallIds(ids){
+  const s = getSeenCallIds();
+  ids.forEach(id=>s.add(id));
+  // cap stored history so this doesn't grow forever
+  const arr = Array.from(s).slice(-5000);
+  localStorage.setItem(CALL_SYNC_SEEN_KEY, JSON.stringify(arr));
+}
+
+function openCallSyncModal(){
+  const s = loadCallSyncSettings();
+  document.getElementById('cs-base-url').value = s.baseUrl || '';
+  document.getElementById('cs-api-key').value = s.apiKey || '';
+  document.getElementById('cs-interval').value = s.intervalSec || 60;
+  const srcSel = document.getElementById('cs-source');
+  srcSel.innerHTML = SOURCES_ALL.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');
+  srcSel.value = s.source || 'IVRS';
+  document.getElementById('cs-toggle-btn').textContent = s.enabled ? 'Disable auto-sync' : 'Enable auto-sync';
+  document.getElementById('cs-status').textContent = s.enabled
+    ? ('Auto-sync is ON — checking every ' + (s.intervalSec||60) + 's.')
+    : 'Auto-sync is OFF. Click "Check now" to test, or "Enable auto-sync" to run on a timer.';
+  document.getElementById('call-sync-overlay').classList.add('open');
+}
+function closeCallSyncModal(){
+  document.getElementById('call-sync-overlay').classList.remove('open');
+}
+document.getElementById('call-sync-overlay').addEventListener('click', (e)=>{
+  if(e.target.id==='call-sync-overlay') closeCallSyncModal();
+});
+
+function readCallSyncFormIntoSettings(){
+  const s = loadCallSyncSettings();
+  s.baseUrl = document.getElementById('cs-base-url').value.trim().replace(/\/+$/,'');
+  s.apiKey = document.getElementById('cs-api-key').value.trim();
+  s.intervalSec = Math.max(15, Number(document.getElementById('cs-interval').value) || 60);
+  s.source = document.getElementById('cs-source').value || 'IVRS';
+  return s;
+}
+function saveCallSyncSettings(){
+  const s = readCallSyncFormIntoSettings();
+  saveCallSyncSettingsObj(s);
+  document.getElementById('call-sync-btn').style.borderColor = s.enabled ? 'var(--green)' : '';
+  document.getElementById('cs-status').textContent = 'Settings saved.';
+}
+function toggleCallSync(){
+  const s = readCallSyncFormIntoSettings();
+  s.enabled = !s.enabled;
+  saveCallSyncSettingsObj(s);
+  document.getElementById('cs-toggle-btn').textContent = s.enabled ? 'Disable auto-sync' : 'Enable auto-sync';
+  document.getElementById('cs-status').textContent = s.enabled
+    ? ('Auto-sync is ON — checking every ' + s.intervalSec + 's.')
+    : 'Auto-sync is OFF.';
+  startOrStopCallSync();
+}
+
+// Try a list of possible field names (backends vary) and return the first present value.
+function pickField(obj, names){
+  for(const n of names){
+    if(obj && obj[n] !== undefined && obj[n] !== null && obj[n] !== '') return obj[n];
+  }
+  return '';
+}
+function deriveCallId(call){
+  const id = pickField(call, ['id','callId','call_id','sid','callSid','call_sid','uuid','_id']);
+  if(id) return String(id);
+  // fallback: hash-ish key from phone + timestamp so we don't recreate the same call twice
+  const phone = pickField(call, ['from','caller','callerNumber','caller_number','phone','number','from_number']);
+  const ts = pickField(call, ['timestamp','time','startTime','start_time','created_at','date']);
+  return 'nid_' + String(phone) + '_' + String(ts);
+}
+function callToCustomerRecord(call, source){
+  const phone = String(pickField(call, ['from','caller','callerNumber','caller_number','phone','number','from_number']) || '').trim();
+  const name = String(pickField(call, ['callerName','caller_name','name']) || '').trim() || ('Caller ' + (phone || ''));
+  const tsRaw = pickField(call, ['timestamp','time','startTime','start_time','created_at','date']);
+  let dateStr = new Date().toISOString().slice(0,10);
+  if(tsRaw){ const d2 = new Date(tsRaw); if(!isNaN(d2.getTime())) dateStr = d2.toISOString().slice(0,10); }
+  const duration = pickField(call, ['duration','call_duration','durationSec','duration_sec']);
+  const recording = String(pickField(call, ['recording_url','recordingUrl','recording','recording_link']) || '').trim();
+  const status = String(pickField(call, ['status','callStatus','call_status','disposition']) || '').trim();
+  const remarksParts = [];
+  if(status) remarksParts.push('Call status: ' + status);
+  if(duration !== '') remarksParts.push('Duration: ' + duration + 's');
+  return {
+    date: dateStr, source: source || 'IVRS', campaign: 'Inbound call', name, phone,
+    product: '', email: '', area: '', city: '',
+    remarks: remarksParts.join(' · '),
+    lastFollowup: 'Auto-created from incoming call',
+    followupCount: 0, enquiry: false, td: false, booking: false, retail: false,
+    lost: false, lostReason: '', recording
+  };
+}
+
+async function checkCallsNow(){
+  const s = readCallSyncFormIntoSettings();
+  saveCallSyncSettingsObj(s);
+  const statusEl = document.getElementById('cs-status');
+  if(!s.baseUrl || !s.apiKey){
+    if(statusEl) statusEl.textContent = 'Enter both the base URL and API key first.';
+    return;
+  }
+  if(callSyncBusy) return;
+  callSyncBusy = true;
+  if(statusEl) statusEl.textContent = 'Checking for new calls…';
+  try{
+    const resp = await fetch(s.baseUrl + '/calls', { headers: { 'x-api-key': s.apiKey } });
+    if(!resp.ok){
+      if(statusEl) statusEl.textContent = 'Backend responded with an error: HTTP ' + resp.status + '. Check the API key and URL.';
+      callSyncBusy = false;
+      return;
+    }
+    const data = await resp.json();
+    const list = Array.isArray(data) ? data : (Array.isArray(data.calls) ? data.calls : (Array.isArray(data.results) ? data.results : []));
+    if(!Array.isArray(list) || !list.length){
+      if(statusEl) statusEl.textContent = 'Connected — no call records found in the response. (Checked ' + new Date().toLocaleTimeString() + ')';
+      console.log('Call sync: raw response was', data);
+      callSyncBusy = false;
+      return;
+    }
+    const seen = getSeenCallIds();
+    const newIds = [];
+    let created = 0;
+    list.forEach(call=>{
+      const cid = deriveCallId(call);
+      if(seen.has(cid)) return;
+      newIds.push(cid);
+      const rec = callToCustomerRecord(call, s.source);
+      if(!rec.phone){ console.log('Call sync: skipped a record with no phone number field recognized —', call); return; }
+      customers.unshift(rec);
+      created++;
+    });
+    if(newIds.length) addSeenCallIds(newIds);
+    if(created){
+      assignCustomerIds();
+      persistCustomers();
+      populateSourceFilter();
+      renderCustomerTable();
+      renderLocationView();
+      render();
+    }
+    if(statusEl) statusEl.textContent = created
+      ? ('✓ Created ' + created + ' new lead(s) from calls. (' + new Date().toLocaleTimeString() + ')')
+      : ('Connected — no new calls since last check. (' + new Date().toLocaleTimeString() + ')');
+  }catch(err){
+    if(statusEl) statusEl.textContent = 'Could not reach the backend — likely a CORS block or network error. See browser console for details.';
+    console.error('Call sync error:', err);
+  }
+  callSyncBusy = false;
+}
+
+function startOrStopCallSync(){
+  clearInterval(callSyncTimer);
+  callSyncTimer = null;
+  const s = loadCallSyncSettings();
+  if(s.enabled && s.baseUrl && s.apiKey){
+    checkCallsNow();
+    callSyncTimer = setInterval(checkCallsNow, s.intervalSec * 1000);
+  }
+}
+
+/* ---------------- CTRL+S / CMD+S MANUAL SAVE ---------------- */
+let saveToastTimer = null;
+function showSaveToast(text){
+  const el = document.getElementById('save-toast');
+  const txt = document.getElementById('save-toast-text');
+  if(!el || !txt) return;
+  txt.textContent = text;
+  el.classList.add('show');
+  clearTimeout(saveToastTimer);
+  saveToastTimer = setTimeout(()=>el.classList.remove('show'), 1800);
+}
+document.addEventListener('keydown', function(e){
+  const key = (e.key || '').toLowerCase();
+  if((e.ctrlKey || e.metaKey) && key === 's'){
+    e.preventDefault();
+    const loginVisible = document.getElementById('login-screen') && document.getElementById('login-screen').style.display !== 'none';
+    if(loginVisible) return;
+    persistCustomers();
+    showSaveToast('✓ Saved to this browser');
+  }
+});
+
+/* ---------------- SESSION PERSIST ---------------- */
+window.addEventListener('DOMContentLoaded', ()=>{
+  if(sessionStorage.getItem('mis_logged_in')==='1'){
+    document.getElementById('login-screen').style.display='none';
+    document.getElementById('dashboard').style.display='block';
+    boot();
+  }
+});
+
+const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSZT3Noa-BE1zDTfS4KDNV6A6l-mm5d1vBbo4UTlzr9CuhQrt3GY6BH6rJnkK7gig/pub?gid=999941999&single=true&output=csv";
+
+async function loadLiveCustomers(){
+  try{
+    const res = await fetch(CSV_URL);
+    const csv = await res.text();
+    const lines = csv.trim().split(/\r?\n/);
+    const headers = lines.shift().split(",");
+    CUSTOMERS = lines.map(line=>{
+      const cols = line.split(",");
+      const obj = {};
+      headers.forEach((h,i)=>obj[h.trim()]=cols[i]||"");
+      return obj;
+    });
+    if(typeof renderAll==="function") renderAll();
+  }catch(e){
+    console.error("Live sync failed", e);
+  }
+}
+loadLiveCustomers();
+setInterval(loadLiveCustomers,60000);
+
+</script>
+<div id="save-toast"><span class="dot"></span><span id="save-toast-text">Saved</span></div>
+</body>
+</html>
